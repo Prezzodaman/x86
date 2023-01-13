@@ -16,7 +16,7 @@ loop:
     mov ah,0ch ; function number
 	int 10h
 	inc dx ; increase y
-	cmp dx,199 ; reached bottom of screen?
+	cmp dx,200 ; reached bottom of screen?
 	jne loop ; if not, keep increasing y
 	inc cx ; otherwise, increase x and reset y
 	mov dx,0
