@@ -1,10 +1,13 @@
 org 100h
 
-gfx_width dw 0
+gfx_erase db 0
+gfx_background_colour db 0 ; colour index for all "sprites"
+gfx_width dw 0 ; using dw because it makes comparisons easier, probably a better way but i'm not known for that
 gfx_height dw 0
-gfx_transparent dw 0 ; the index used for transparency
+gfx_transparent db 0 ; the index used for transparency
 gfx_x_pos dw 0
 gfx_y_pos dw 0
+yes db 0
 
 main:
     mov al,13h ; graphics mode: 13h (256 colour vga)
@@ -24,20 +27,23 @@ main:
 	mov dx,gfx_buffer
 	int 21h
 	
+.loop:
+	mov byte [gfx_erase],0
 	call draw_gfx
 	
-	add word [gfx_x_pos],32
-	add word [gfx_y_pos],32
+    mov ecx,48000
+.delay:
+    nop
+    loop .delay
+	
+	mov byte [gfx_erase],1
 	call draw_gfx
 	
-	add word [gfx_x_pos],8
-	add word [gfx_y_pos],8
-	call draw_gfx
+	inc word [gfx_x_pos]
+	inc word [gfx_y_pos]
 	
 	;mov ah,4ch
 	;int 21h
-	
-.loop:
 	jmp .loop
 	
 draw_gfx:
@@ -58,7 +64,12 @@ draw_gfx:
     mov al,[gfx_buffer+si] ; pixel colour
 	cmp al,[gfx_transparent]
 	je .skip ; if the pixel is "transparent", skip drawing
-    mov ah,0ch ; otherwise, draw that bad boy
+	
+	cmp byte [gfx_erase],0 ; otherwise, check if we're erasing so we use the right colour
+	je .erase_skip ; if not, use the proper colour as set earlier
+	mov al,[gfx_background_colour] ; otherwise, use background colour
+.erase_skip:
+    mov ah,0ch ; draw that bad boy
     int 10h
 .skip:
 	inc si ; next byte
