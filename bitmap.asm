@@ -1,7 +1,8 @@
 org 100h
 
+vga equ 0xa000
 gfx_erase db 0
-gfx_background_colour db 0 ; colour index for all "sprites"
+gfx_background_colour db 1 ; colour index for all "sprites"
 gfx_width dw 0 ; using dw because it makes comparisons easier, probably a better way but i'm not known for that
 gfx_height dw 0
 gfx_transparent db 0 ; the index used for transparency
@@ -9,11 +10,28 @@ gfx_x_pos dw 0
 gfx_y_pos dw 0
 yes db 0
 
-main:
     mov al,13h ; graphics mode: 13h (256 colour vga)
     mov ah,0 ; function number
     int 10h
+
+flood_fill:	
+	; flood fill (background colour is iffy, so we're going it manually)
+	mov cx,0
+	mov dx,0
+	mov al,[gfx_background_colour]
+	mov ah,0ch
+
+.loop:
+	int 10h
+	inc cx
+	cmp cx,320
+	jne .loop
+	mov cx,0
+	inc dx
+	cmp dx,200
+	jne .loop
 	
+main:
 	; REMEMBER: with brackets refers to the data inside, without brackets refers to the offset
 	mov ah,3dh ; open file
 	mov al,0 ; read
@@ -23,21 +41,35 @@ main:
 	
 	mov ah,3fh ; read from file
 	mov bx,[file_handle] ; load VALUE OF file_handle into bx
-	mov cx,242h
+	mov cx,1024h
 	mov dx,gfx_buffer
 	int 21h
 	
 .loop:
 	mov byte [gfx_erase],0
+	
 	call draw_gfx
 	
-    mov ecx,48000
+	add word [gfx_x_pos],50
+	add word [gfx_y_pos],50
+	call draw_gfx
+	sub word [gfx_x_pos],50
+	sub word [gfx_y_pos],50
+	
+    mov ecx,62000
 .delay:
     nop
     loop .delay
 	
 	mov byte [gfx_erase],1
+	
 	call draw_gfx
+	
+	add word [gfx_x_pos],50
+	add word [gfx_y_pos],50
+	call draw_gfx
+	sub word [gfx_x_pos],50
+	sub word [gfx_y_pos],50
 	
 	inc word [gfx_x_pos]
 	inc word [gfx_y_pos]
@@ -90,7 +122,7 @@ draw_gfx:
 	ret
 	
 file_handle: db 0
-bloke_gfx: db "bloke.gfx",0
+bloke_gfx: db "birz.gfx",0
 yup: db "yup.yup",0
 gfx_buffer: times 1024 db 0
 msg: db "oops something bad has bappened",13,10,"$"
