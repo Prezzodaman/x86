@@ -82,7 +82,7 @@ loop:
 	mov word [pixel_colour_current],0
 	
 	; delay...
-    mov ecx,12000
+    mov ecx,24000
 .delay:
     nop
     loop .delay
@@ -174,7 +174,7 @@ pixel_draw:
 	mov ax,cx ; copy modified pixel x to ax
 	sub ax,[pixel_x+si] ; difference between modified pixel x and original pixel x
 	cmp ax,[pixel_size+si] ; have we reached the end of the line yet? (well it's aaaaaaalright)
-	jng .horiz_loop ; if not, keep bustin.
+	jb .horiz_loop ; if not, keep bustin.
 	
 	inc dx ; otherwise, we've reached the end of the line, increase y and reset x
 	mov cx,[pixel_x+si]
@@ -182,6 +182,6 @@ pixel_draw:
 	mov ax,dx
 	sub ax,[pixel_y+si] ; difference between modified/original again...
 	cmp ax,[pixel_size+si] ; are we there yet?
-	jng .horiz_loop ; if not, keep drawing horizontally
+	jb .horiz_loop ; if not, keep drawing horizontally
 	
 	ret
