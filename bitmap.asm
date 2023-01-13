@@ -41,7 +41,7 @@ main:
 	
 	mov ah,3fh ; read from file
 	mov bx,[file_handle] ; load VALUE OF file_handle into bx
-	mov cx,1024h
+	mov cx,902h
 	mov dx,gfx_buffer
 	int 21h
 	
@@ -124,5 +124,5 @@ draw_gfx:
 file_handle: db 0
 bloke_gfx: db "birz.gfx",0
 yup: db "yup.yup",0
-gfx_buffer: times 1024 db 0
+gfx_buffer: db ?
 msg: db "oops something bad has bappened",13,10,"$"
