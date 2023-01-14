@@ -28,7 +28,7 @@ if len(sys.argv)>2:
                     file_finished.append(colour_index)
         with open(output_file,"bw") as file:
             file.write(bytearray(file_finished))
-                    
+        print("Converted size: " + str(len(file_finished)) + " (" + hex(len(file_finished)) + ")")
     else:
         print("File \"" + file_name + "\" doesn't exist!")
 else:
