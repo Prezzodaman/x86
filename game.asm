@@ -3,10 +3,6 @@ org 100h
 sprite_buffer_segment dw 0
 key_states times 128 db 0
 
-pres_x_pos dw 0
-pres_y_pos dw 0
-pres_speed db 2
-
 gfx_erase db 0
 gfx_background_colour db 1 ; colour index for all "sprites"
 gfx_width db 0 ; using dw because it makes comparisons easier, probably a better way but i'm not known for that
@@ -14,6 +10,11 @@ gfx_height db 0
 gfx_transparent db 0 ; the index used for transparency
 gfx_x_pos dw 0
 gfx_y_pos dw 0
+gfx_buffer_offset dw 0
+
+pres_x_pos dw 0
+pres_y_pos dw 0
+pres_speed db 2
 
 	mov dx,key_handler ; replace the default key handler with our own
 	mov ax,2509h
@@ -26,7 +27,6 @@ gfx_y_pos dw 0
 	mov ax,0a000h
 	mov es,ax ; es Should(tm) always contain the vga memory address
 	
-
 	mov ah,48h ; allocate memory for the vga buffer
 	mov bx,64000 ; how many paragraphs to allocate
 	; (we're doing it in bytes then converting to "paragraphs" because it's easier for me to read)
@@ -37,11 +37,9 @@ gfx_y_pos dw 0
 	mov ax,sprite_buffer_segment
 	shl ax,5 ; shift by 32
 	mov fs,ax ; fs is the temporary graphics buffer
-;yeee:
-;	jmp yeee
 	
 flood_fill:	
-	; flood fill (background colour is iffy, so we're going it manually)
+	; flood fill (background colour is iffy, so we're doing it manually)
 	mov di,64000 ; vga ram size
 	mov al,[gfx_background_colour]
 
@@ -63,7 +61,7 @@ main:
 	mov ah,3fh ; read from file
 	mov bx,[file_handle] ; load VALUE OF file_handle into bx
 	mov cx,902h
-	mov dx,gfx_buffer
+	mov dx,pres_gfx_buffer
 	int 21h
 	
 .loop:
@@ -76,6 +74,8 @@ main:
 	mov word [gfx_x_pos],ax
 	mov ax,[pres_y_pos]
 	mov word [gfx_y_pos],ax
+	mov ax,pres_gfx_buffer
+	mov word [gfx_buffer_offset],ax
 	call draw_gfx
 	
 .skip:
@@ -138,11 +138,18 @@ draw_gfx:
 	
 	; graphics are stored x first, then y
 	
-	mov ax,[gfx_buffer] ; first byte should contain the width
+	mov bx,gfx_buffer_offset
+	xor ax,ax ; clear out ax
+	mov ax,[bx] ; get the offset value
+	mov bx,ax ; then swap'em round and get the value from the offset of the offset value (head explodes)
+	xor ax,ax
+	mov al,[bx]
+	
+	mov ax,[bx] ; first byte should contain the width
 	mov byte [gfx_width],al
-	mov ax,[gfx_buffer+1] ; second byte should contain the height
+	mov al,[bx+1] ; second byte should contain the height
 	mov byte [gfx_height],al
-	mov ax,[gfx_buffer+2] ; top left pixel is assumed transparent
+	mov al,[bx+2] ; top left pixel is assumed transparent
 	mov byte [gfx_transparent],al
 	mov si,2 ; beginning of actual graphic data
     mov cx,[gfx_x_pos] ; x
@@ -150,7 +157,7 @@ draw_gfx:
 
 .loop:
 	
-    mov al,[gfx_buffer+si] ; pixel colour
+    mov al,[bx+si] ; pixel colour
 	cmp al,[gfx_transparent]
 	je .skip ; if the pixel is "transparent", skip drawing
 	
@@ -168,7 +175,6 @@ draw_gfx:
 	add di,dx
 	add di,cx ; di: y<<6+y<<8+x
     pop dx
-	;mov byte [es:di],al ; the pixel
 	mov byte [fs:di],al
 	
 .skip:
@@ -210,5 +216,5 @@ key_handler:
 file_handle: db 0
 bloke_gfx: db "bumper.gfx",0
 yup: db "yup.yup",0
-gfx_buffer: db ?
+pres_gfx_buffer: db ?
 msg: db "oops something bad has bappened",13,10,"$"
