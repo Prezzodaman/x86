@@ -106,26 +106,36 @@ main:
 	mov word [gfx_y_pos],ax
 	call draw_gfx
 	
-	; detect key presses
-	
 	xor dx,dx
 	mov dl,[pres_speed]
-	mov ax,0
-	cmp [key_states+50h],ax
-	je .key_check_up
-	add word [pres_y_pos],dx
+	
+	; detect key presses
+	
+	cmp byte [key_states+50h],0 ; down pressed?
+	je .key_check_up ; if not, skip
+	mov ax,200-32
+	cmp word [pres_y_pos],ax ; have we reached the bottom?
+	jae .key_check_up ; if so, skip
+	add word [pres_y_pos],dx ; otherwise, move
 .key_check_up:
-	cmp [key_states+48h],ax
-	je .key_check_left
-	sub word [pres_y_pos],dx
+	cmp byte [key_states+48h],0 ; up pressed?
+	je .key_check_left ; if not, skip
+	cmp word [pres_y_pos],0 ; have we reached the top?
+	jle .key_check_left ; if so, skip
+	sub word [pres_y_pos],dx ; otherwise, move
 .key_check_left:
-	cmp [key_states+4bh],ax
-	je .key_check_right
-	sub word [pres_x_pos],dx
+	cmp byte [key_states+4bh],0 ; left pressed?
+	je .key_check_right ; if not, skip
+	cmp word [pres_x_pos],0 ; have we reached the left?
+	jle .key_check_right ; if so, skip
+	sub word [pres_x_pos],dx ; otherwise, move
 .key_check_right:
-	cmp [key_states+4dh],ax
-	je .key_check_end
-	add word [pres_x_pos],dx
+	cmp byte [key_states+4dh],0 ; right pressed?
+	je .key_check_end ; if not, skip
+	mov ax,320-48
+	cmp word [pres_x_pos],ax ; have we reached the right?
+	jae .key_check_end ; if so, skip
+	add word [pres_x_pos],dx ; otherwise, move
 .key_check_end:
 	
 	
@@ -217,4 +227,4 @@ file_handle: db 0
 bloke_gfx: db "bumper.gfx",0
 yup: db "yup.yup",0
 pres_gfx_buffer: db ?
-msg: db "oops something bad has bappened",13,10,"$"
+msg: db "oops something bad has bappened",13,10,"$" ; have you seen my floury baps? my floury baps are floury. greggs.
