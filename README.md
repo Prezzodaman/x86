@@ -10,7 +10,7 @@ Make a game that involves a bald, emotionless version of myself riding in a bump
 ## BGL (Best Graphics Library)
 It's the thing I've written for my game to draw graphics, mainly sprites. It is the greatest graphics library to ever exist.
 
-Okay, so it's a bit flawed; the background colour has to be solid because of how redrawing works, and it isn't in its own file (Yet™), but it's surprisingly effective. It uses a custom file format which is extremely simple. The first 2 bytes consist of the width and height (of course, the maximum is 255), and the rest of the bytes consist of the different colour indexes that make up the graphic. In a way, it's better than using a pre-existing format, as I have all VGA colours at my disposal, and it's super quick to parse as it consists of raw data.
+Okay, so it's a bit flawed; the background colour has to be solid because of how redrawing works, but it's surprisingly effective. It uses a custom file format which is extremely simple. The first 2 bytes consist of the width and height (of course, the maximum is 255), and the rest of the bytes consist of the different colour indexes that make up the graphic. In a way, it's better than using a pre-existing format, as I have all VGA colours at my disposal, and it's super quick to parse as it consists of raw data.
 
 Graphics have to be stored in a buffer of fixed size, which is probably where most of the game's filesize will come from. For instance, if your graphic is 1024 bytes large (including the "header"), make a buffer that consists of 1024 empty bytes. Then, the BIOS file loader will know exactly how many bytes to load. Luckily, most of the player graphics in my game are the exact same size, so I can get away with reusing the same buffer for all players.
 
