@@ -96,7 +96,7 @@ main:
 	mov word [collision_h2],ax
 	call collision_check
 	
-	push 1
+	push 0
 	push word [collision_flag]
 	push bumper_other_gfx_buffer
 	push word [background_colour]
@@ -104,7 +104,7 @@ main:
 	push word [other_y_pos]
 	call bgl_draw_gfx
 	
-	push 0
+	push word [pres_facing_left]
 	push 0
 	push bumper_pres_gfx_buffer
 	push word [background_colour]
@@ -154,6 +154,7 @@ main:
 	cmp word [pres_x_pos],0 ; have we reached the left?
 	jbe .key_check_right ; if so, skip
 	sub word [pres_x_pos],dx ; otherwise, move
+	mov byte [pres_facing_left],1
 .key_check_right:
 	cmp byte [key_states+4dh],0 ; right pressed?
 	je .key_check_end ; if not, skip
@@ -161,6 +162,7 @@ main:
 	cmp word [pres_x_pos],ax ; have we reached the right?
 	jae .key_check_end ; if so, skip
 	add word [pres_x_pos],dx ; otherwise, move
+	mov byte [pres_facing_left],0
 .key_check_end:
 	jmp .loop
 	
@@ -224,9 +226,10 @@ collision_flag db 0
 
 pres_x_pos dw 0
 pres_y_pos dw 0
+pres_speed db 2
+pres_facing_left db 0
 other_x_pos dw 255-48
 other_y_pos dw 10h
-pres_speed db 2
 
 bumper_pres_gfx: db "bumper_pres.gfx",0
 bumper_cool_gfx: db "bumper_cool.gfx",0
