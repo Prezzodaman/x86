@@ -1,22 +1,5 @@
-org 100h
-
-sprite_buffer_segment dw 0
-key_states times 128 db 0
-
-gfx_erase db 0
-gfx_background_colour db 1 ; colour index for all "sprites"
-gfx_width db 0 ; using dw because it makes comparisons easier, probably a better way but i'm not known for that
-gfx_height db 0
-gfx_transparent db 0 ; the index used for transparency
-gfx_x_pos dw 0
-gfx_y_pos dw 0
-gfx_buffer_offset dw 0
-
-pres_x_pos dw 0
-pres_y_pos dw 0
-other_x_pos dw 0
-other_y_pos dw 0
-pres_speed db 2
+	
+	org 100h
 
 	mov dx,key_handler ; replace the default key handler with our own
 	mov ax,2509h
@@ -43,7 +26,7 @@ pres_speed db 2
 flood_fill:	
 	; flood fill (background colour is iffy, so we're doing it manually)
 	mov di,64000 ; vga ram size
-	mov al,[gfx_background_colour]
+	mov al,[background_colour]
 
 .loop:
 	mov byte [fs:di],al
@@ -97,63 +80,49 @@ main:
 	
 	; draw sprites
 	
-	mov byte [gfx_erase],0
+	push 0
+	push bumper_other_gfx_buffer
+	push word [background_colour]
+	push word [other_x_pos]
+	push word [other_y_pos]
+	call bgl_draw_gfx
 	
-	mov ax,[other_x_pos]
-	mov word [gfx_x_pos],ax
-	mov ax,[other_y_pos]
-	mov word [gfx_y_pos],ax
-	mov ax,bumper_other_gfx_buffer
-	mov word [gfx_buffer_offset],ax
-	call draw_gfx
-	
-	mov ax,[pres_x_pos]
-	mov word [gfx_x_pos],ax
-	mov ax,[pres_y_pos]
-	mov word [gfx_y_pos],ax
-	mov ax,bumper_pres_gfx_buffer
-	mov word [gfx_buffer_offset],ax
-	call draw_gfx
-	
-	;mov word [gfx_x_pos],0
-	;mov word [gfx_y_pos],0
-	;mov ax,bumper_other_gfx_buffer
-	;mov word [gfx_buffer_offset],ax
-	;call draw_gfx
+	push 0
+	push bumper_pres_gfx_buffer
+	push word [background_colour]
+	push word [pres_x_pos]
+	push word [pres_y_pos]
+	call bgl_draw_gfx
 	
 .skip:
 	
-;    mov ecx,22000
-;.delay:
-;    nop
-;    loop .delay
-	
 	; write the buffer to the screen BEFORE erasing...
 	
-	mov di,0
+	mov si,0
 	
 .write_buffer_loop:
-	mov al,[fs:di] ; get value from buffer
-	mov byte [es:di],al ; write this value to the video memory
-	inc di
-	cmp di,64000
+	mov al,[fs:si] ; get value from buffer
+	mov byte [es:si],al ; write this value to the video memory
+	inc si
+	cmp si,64000
 	jne .write_buffer_loop
 	
 	; erase sprites
 	
-	mov byte [gfx_erase],1
+	push 1
+	push bumper_other_gfx_buffer
+	push word [background_colour]
+	push word [other_x_pos]
+	push word [other_y_pos]
+	call bgl_draw_gfx
 	
-	mov ax,[other_x_pos]
-	mov word [gfx_x_pos],ax
-	mov ax,[other_y_pos]
-	mov word [gfx_y_pos],ax
-	call draw_gfx
+	push 1
+	push bumper_pres_gfx_buffer
+	push word [background_colour]
+	push word [pres_x_pos]
+	push word [pres_y_pos]
+	call bgl_draw_gfx
 	
-	mov ax,[pres_x_pos]
-	mov word [gfx_x_pos],ax
-	mov ax,[pres_y_pos]
-	mov word [gfx_y_pos],ax
-	call draw_gfx
 	
 	xor dx,dx
 	mov dl,[pres_speed]
@@ -195,67 +164,6 @@ main:
 	
 	jmp .loop
 	
-draw_gfx:
-	
-	; graphics are stored x first, then y
-	
-	mov bx,gfx_buffer_offset
-	xor ax,ax ; clear out ax
-	mov ax,[bx] ; get the offset value
-	mov bx,ax ; then swap'em round and get the value from the offset of the offset value (head explodes)
-	xor ax,ax
-	mov al,[bx]
-	
-	mov ax,[bx] ; first byte should contain the width
-	mov byte [gfx_width],al
-	mov al,[bx+1] ; second byte should contain the height
-	mov byte [gfx_height],al
-	mov al,[bx+2] ; top left pixel is assumed transparent
-	mov byte [gfx_transparent],al
-	mov si,2 ; beginning of actual graphic data
-    mov cx,[gfx_x_pos] ; x
-    mov dx,[gfx_y_pos] ; y
-
-.loop:
-	
-    mov al,[bx+si] ; pixel colour
-	cmp al,[gfx_transparent]
-	je .skip ; if the pixel is "transparent", skip drawing
-	
-	cmp byte [gfx_erase],0 ; otherwise, check if we're erasing so we use the right colour
-	je .erase_skip ; if not, use the proper colour as set earlier
-	mov al,[gfx_background_colour] ; otherwise, use background colour
-.erase_skip:
-	; es = vga video buffer, fs = temporary buffer
-	; draw that bad boy. at this point al contains the colour
-	push dx ; y is being modified, so aaah sssh push it, pu-pu-push it push it
-	; formula: (y<<8)+(y<<6)+x
-	shl dx,6
-	mov di,dx ; di: y<<6
-	shl dx,2 ; dx: y<<8
-	add di,dx
-	add di,cx ; di: y<<6+y<<8+x
-    pop dx
-	mov byte [fs:di],al
-	
-.skip:
-	inc si ; next byte
-	inc cx ; increase x
-	
-	mov ax,cx
-	sub al,[gfx_x_pos] ; new x - original x
-	cmp al,[gfx_width] ; reached the end of the line?
-	jb .loop ; if not, go to next horizontal pixel
-	mov cx,[gfx_x_pos] ; we've reached the end of the line, so reset x and increase y
-	inc dx
-	
-	mov ax,dx
-	sub al,[gfx_y_pos] ; new y - original y
-	cmp al,[gfx_height] ; reached the bottom of the graphic?
-	jb .loop ; if not, go to next line
-	
-	ret
-	
 key_handler:
 	push ax
 	push bx
@@ -273,6 +181,17 @@ key_handler:
 	pop bx
 	pop ax
 	iret
+	
+sprite_buffer_segment dw 0
+key_states times 128 db 0
+
+background_colour db 1 ; colour index for all "sprites"
+
+pres_x_pos dw 0
+pres_y_pos dw 0
+other_x_pos dw 20h
+other_y_pos dw 10h
+pres_speed db 2
 
 bumper_pres_gfx: db "bumper_pres.gfx",0
 bumper_cool_gfx: db "bumper_cool.gfx",0
@@ -284,3 +203,5 @@ bumper_rye_gfx: db "bumper_rye.gfx",0
 bumper_pres_gfx_buffer: times 602h db 0
 bumper_other_gfx_buffer: times 602h db 0
 msg: db "oops something bad has bappened",13,10,"$" ; have you seen my floury baps? my floury baps are floury. greggs.
+	
+%include "..\bgl.asm"
