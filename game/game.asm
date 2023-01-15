@@ -14,6 +14,8 @@ gfx_buffer_offset dw 0
 
 pres_x_pos dw 0
 pres_y_pos dw 0
+other_x_pos dw 0
+other_y_pos dw 0
 pres_speed db 2
 
 	mov dx,key_handler ; replace the default key handler with our own
@@ -97,17 +99,19 @@ main:
 	
 	mov byte [gfx_erase],0
 	
+	mov ax,[other_x_pos]
+	mov word [gfx_x_pos],ax
+	mov ax,[other_y_pos]
+	mov word [gfx_y_pos],ax
+	mov ax,bumper_other_gfx_buffer
+	mov word [gfx_buffer_offset],ax
+	call draw_gfx
+	
 	mov ax,[pres_x_pos]
 	mov word [gfx_x_pos],ax
 	mov ax,[pres_y_pos]
 	mov word [gfx_y_pos],ax
 	mov ax,bumper_pres_gfx_buffer
-	mov word [gfx_buffer_offset],ax
-	call draw_gfx
-	
-	mov word [gfx_x_pos],0
-	mov word [gfx_y_pos],0
-	mov ax,bumper_other_gfx_buffer
 	mov word [gfx_buffer_offset],ax
 	call draw_gfx
 	
@@ -139,6 +143,12 @@ main:
 	
 	mov byte [gfx_erase],1
 	
+	mov ax,[other_x_pos]
+	mov word [gfx_x_pos],ax
+	mov ax,[other_y_pos]
+	mov word [gfx_y_pos],ax
+	call draw_gfx
+	
 	mov ax,[pres_x_pos]
 	mov word [gfx_x_pos],ax
 	mov ax,[pres_y_pos]
@@ -149,6 +159,8 @@ main:
 	mov dl,[pres_speed]
 	
 	; detect key presses
+	
+	inc word [other_x_pos]
 	
 	cmp byte [key_states+50h],0 ; down pressed?
 	je .key_check_up ; if not, skip
