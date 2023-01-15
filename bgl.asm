@@ -3,6 +3,7 @@
 ;
 ; fs MUST contain offset of video buffer!!
 
+bgl_flip db 0
 bgl_erase db 0
 bgl_width db 0
 bgl_height db 0
@@ -15,6 +16,7 @@ bgl_stack dw 0
 
 bgl_draw_gfx:
 	; the reason we're not just popping is because when calling a function, the topmost index will contain the return address
+	
 	pop word [bgl_stack]
 	
 	mov ax,[esp]
@@ -33,6 +35,8 @@ bgl_draw_gfx:
 	mov ax,[esp+8]
 	mov byte [bgl_erase],al
 	
+	mov ax,[esp+10]
+	mov byte [bgl_flip],al
 	
 	; clean up the stack
 	
@@ -41,6 +45,8 @@ bgl_draw_gfx:
 	pop ax
 	pop ax
 	pop ax
+	pop ax
+	xor ax,ax
 	
 	push si
 	
@@ -55,6 +61,12 @@ bgl_draw_gfx:
 	mov si,2 ; beginning of actual graphic data
     mov cx,[bgl_x_pos] ; x
     mov dx,[bgl_y_pos] ; y
+	
+	cmp byte [bgl_flip],0 ; drawing flipped?
+	je .loop ; if not, carry on as usual
+	xor ax,ax
+	mov al,[bgl_width]
+	add cx,ax ; otherwise, start from the end
 
 .loop:
 	
@@ -89,16 +101,36 @@ bgl_draw_gfx:
 .skip:
 	inc si ; next byte
 	inc cx ; increase x
-	
+	cmp byte [bgl_flip],0 ; drawing flipped?
+	je .skip2 ; if not, carry on as usual
+	sub cx,2 ; otherwise, decrease x
+.skip2:
+	cmp byte [bgl_flip],0 ; drawing flipped?
+	je .skip3 ; if not, carry on as usual
+	cmp cx,[bgl_x_pos] ; otherwise, compare the current x to the original x
+	mov ax,[bgl_x_pos]
+	jne .loop
+	jmp .skip4 ; reached the end of this line
+.skip3:
 	mov ax,cx
-	sub al,[bgl_x_pos] ; new x - original x
+	sub ax,[bgl_x_pos] ; new x - original x
 	cmp al,[bgl_width] ; reached the end of the line?
 	jb .loop ; if not, go to next horizontal pixel
 	mov cx,[bgl_x_pos] ; we've reached the end of the line, so reset x and increase y
+	jmp .skip5
+.skip4:
+	xor cx,cx
+	mov cx,[bgl_x_pos]
+	push ax
+	xor ax,ax
+	mov al,[bgl_width]
+	add cx,ax
+	pop ax
+.skip5:
 	inc dx
 	
 	mov ax,dx
-	sub al,[bgl_y_pos] ; new y - original y
+	sub ax,[bgl_y_pos] ; new y - original y
 	cmp al,[bgl_height] ; reached the bottom of the graphic?
 	jb .loop ; if not, go to next line
 	
