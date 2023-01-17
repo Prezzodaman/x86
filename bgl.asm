@@ -12,52 +12,41 @@ bgl_x_pos dw 0
 bgl_y_pos dw 0
 bgl_buffer_offset dw 0
 bgl_background_colour db 0
-bgl_stack dw 0
+bgl_opaque db 0
+bgl_collision_flag db 0
+bgl_collision_x1 dw 0
+bgl_collision_x2 dw 0
+bgl_collision_y1 dw 0
+bgl_collision_y2 dw 0
+bgl_collision_w1 dw 0
+bgl_collision_w2 dw 0
+bgl_collision_h1 dw 0
+bgl_collision_h2 dw 0
+bgl_key_states times 128 db 0
 
 bgl_draw_gfx:
-	; the reason we're not just popping is because when calling a function, the topmost index will contain the return address
-	
-	pop word [bgl_stack]
-	
-	mov ax,[esp]
-	mov word [bgl_y_pos],ax
-	
-	mov ax,[esp+2]
-	mov word [bgl_x_pos],ax
-	
-	mov ax,[esp+4]
-	mov byte [bgl_background_colour],al
-	
-	mov ax,[esp+6] ; graphics offset
-	mov bx,ax
-	xor ax,ax ; bx is now the offset from which to read
-	
-	mov ax,[esp+8]
-	mov byte [bgl_erase],al
-	
-	mov ax,[esp+10]
-	mov byte [bgl_flip],al
-	
-	; clean up the stack
-	
-	pop ax
-	pop ax
-	pop ax
-	pop ax
-	pop ax
-	pop ax
-	xor ax,ax
-	
+	push ax
+	push bx
+	push cx
+	push dx
 	push si
 	
 	; graphics are stored x first, then y
+	
+	mov bx,[bgl_buffer_offset]
 	
 	mov al,[bx] ; first byte should contain the width
 	mov byte [bgl_width],al
 	mov al,[bx+1] ; second byte should contain the height
 	mov byte [bgl_height],al
+	
 	mov al,[bx+2] ; top left pixel is assumed transparent
 	mov byte [bgl_transparent],al
+	cmp byte [bgl_opaque],0
+	je .opaque_skip
+	mov byte [bgl_transparent],255
+	
+.opaque_skip:
 	mov si,2 ; beginning of actual graphic data
     mov cx,[bgl_x_pos] ; x
     mov dx,[bgl_y_pos] ; y
@@ -74,13 +63,13 @@ bgl_draw_gfx:
 	cmp al,[bgl_transparent]
 	je .skip ; if the pixel is "transparent", skip drawing
 	cmp cx,320
-	jae .skip ; if the pixel has exceeded the horizontal boundaries, skip
+	jge .skip ; if the pixel has exceeded the horizontal boundaries, skip
 	cmp cx,0
-	jb .skip ; -'-
+	jl .skip ; -'-
 	cmp dx,200
-	jae .skip ; if the pixel has exceeded the vertical boundaries, skip
+	jge .skip ; if the pixel has exceeded the vertical boundaries, skip
 	cmp dx,0
-	jb .skip ; -'-
+	jl .skip ; -'-
 	
 	cmp byte [bgl_erase],0 ; otherwise, check if we're erasing so we use the right colour
 	je .erase_skip ; if not, use the proper colour as set earlier
@@ -135,6 +124,56 @@ bgl_draw_gfx:
 	jb .loop ; if not, go to next line
 	
 	pop si
-	push word [bgl_stack]
-	
+	pop dx
+	pop cx
+	pop bx
+	pop ax
 	ret
+	
+bgl_collision_check:
+	push ax
+	
+    mov byte [bgl_collision_flag],0
+	
+	; I have no clue why I had to use jb for all of these, I tried the "logical choice" and it just didn't work.
+	; If I had to guess why, it's because the result of all these comparisons will be negative if false.
+	
+	mov ax,[bgl_collision_x2]
+	add ax,[bgl_collision_w2]
+	cmp ax,[bgl_collision_x1]
+	jb .skip
+	mov ax,[bgl_collision_x1]
+	add ax,[bgl_collision_w1]
+	cmp ax,[bgl_collision_x2]
+	jb .skip
+	mov ax,[bgl_collision_y2]
+	add ax,[bgl_collision_h2]
+	cmp ax,[bgl_collision_y1]
+	jb .skip
+	mov ax,[bgl_collision_y1]
+	add ax,[bgl_collision_h1]
+	cmp ax,[bgl_collision_y2]
+	jb .skip
+	
+	mov byte [bgl_collision_flag],1
+.skip:
+	pop ax
+	ret	
+
+bgl_key_handler:
+	push ax
+	push bx
+	
+	in al,60h ; get keyboard stuff
+	xor ah,ah
+	mov bx,ax
+	and bx,127 ; last 7 bits (bx): scan code
+	shl ax,1 ; first bit (ah): press/release
+	xor ah,1
+	mov [bgl_key_states+bx],ah ; move press/release state to the appropriate index
+	mov al,20h
+	out 20h,al
+	
+	pop bx
+	pop ax
+	iret
