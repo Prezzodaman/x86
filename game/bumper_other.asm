@@ -59,8 +59,13 @@ bumper_other_movement:
 	sub word [bumper_other_x_pos],ax
 .skip3:
 	mov ax,[bumper_pres_x_vel]
+	cmp byte [bumper_pres_moving_left],0 ; am i moving left?
+	jne .skip4 ; if not, skip
 	sub word [bumper_other_x_pos],ax
-	
+	jmp .skip5
+.skip4:
+	add word [bumper_other_x_pos],ax
+.skip5:
 	mov ax,[bumper_other_x_pos]
 	cmp ax,320
 	jl .bound_check_skip3
