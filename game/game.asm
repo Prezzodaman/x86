@@ -1,7 +1,7 @@
 	
 	org 100h
 
-	mov dx,key_handler ; replace the default key handler with our own
+	mov dx,bgl_key_handler ; replace the default key handler with our own
 	mov ax,2509h
 	int 21h
 
@@ -25,97 +25,126 @@
 	
 main:
 
-	; REMEMBER: with brackets refers to the data inside, without brackets refers to the offset
-	
-	;;
-	
-	mov ah,3dh ; open file
-	xor al,al ; read
-	mov dx,bumper_pres_gfx ; load OFFSET of gfx
-	int 21h
-	push ax
-	
-	mov ah,3fh ; read from file
-	pop bx
-	mov cx,602h
-	mov dx,bumper_pres_gfx_buffer
-	int 21h
-	push bx
-	
-	mov ah,3eh ; close the file to free up the handle
-	pop bx
-	int 21h
-	
-	;;
-	
-	mov ah,3dh ; open file
-	xor al,al ; read
-	mov dx,bumper_cool_gfx ; load OFFSET of gfx
-	int 21h
-	push ax
-	
-	mov ah,3fh ; read from file
-	pop bx
-	mov cx,602h
-	mov dx,bumper_other_gfx_buffer
-	int 21h
-	push bx
-	
-	mov ah,3eh ; close the file to free up the handle
-	pop bx
-	int 21h
-	
-.loop:
-	
-.flood_fill:	
+.flood_fill_top:	
 	; flood fill (background colour is iffy, so we're doing it manually)
-	mov di,64000 ; vga ram size
+	mov di,0
+	mov al,15
+
+.flood_fill_top_loop:
+	mov byte [fs:di],al
+	add di,320*41
+	mov byte [fs:di],al
+	sub di,320*41
+	
+	inc di
+	cmp di,320*15
+	jne .flood_fill_top_loop
+	
+.flood_fill_bottom:	
+	mov ax,[road_start_y]
+	mov bx,320
+	mul bx ; ax*=bx
+	mov di,ax
 	mov al,[background_colour]
 
-.flood_fill_loop:
+.flood_fill_bottom_loop:
 	mov byte [fs:di],al
-	dec di
-	cmp di,0
-	jne .flood_fill_loop
+	inc di
+	cmp di,64000
+	jne .flood_fill_bottom_loop
 	
+	; draw back-round
+	
+.background:
+	mov ax,[background_x]
+	sub ax,126
+	mov cx,0
+.background_loop:
+	mov byte [bgl_opaque],1
+	push cx
+	and cx,1
+	mov byte [bgl_flip],cl
+	pop cx
+	mov byte [bgl_erase],0
+	push ax
+	mov ax,background_chunk_gfx
+	mov word [bgl_buffer_offset],ax
+	pop ax
+	mov word [bgl_x_pos],ax
+	mov word [bgl_y_pos],14
+	call bgl_draw_gfx
+	add ax,62
+	inc cx
+	cmp cx,9
+	jb .background_loop
+
+.background_arrows:
+	mov ax,[background_arrow_x]
+	sub ax,38
+	mov cx,0
+.background_arrows_loop:
+	mov byte [bgl_opaque],1
+	mov byte [bgl_flip],0
+	mov byte [bgl_erase],0
+	push ax
+	mov ax,background_arrow_gfx
+	mov word [bgl_buffer_offset],ax
+	pop ax
+	mov word [bgl_x_pos],ax
+	mov word [bgl_y_pos],56
+	call bgl_draw_gfx
+	add ax,32
+	inc cx
+	cmp cx,12
+	jb .background_arrows_loop
+
 	; draw sprites
 	
-	mov ax,[pres_x_pos]
-	mov word [collision_x1],ax
-	mov ax,[pres_y_pos]
-	mov word [collision_y1],ax
-	mov ax,[other_x_pos]
-	mov word [collision_x2],ax
-	mov ax,[other_y_pos]
-	mov word [collision_y2],ax
-	mov ax,48
-	mov word [collision_w1],ax
-	mov word [collision_w2],ax
-	mov ax,32
-	mov word [collision_h1],ax
-	mov word [collision_h2],ax
-	call collision_check
+	call bumper_collisions ; collisions first!
 	
-	push 0
-	push word [collision_flag]
-	push bumper_other_gfx_buffer
-	push word [background_colour]
-	push word [other_x_pos]
-	push word [other_y_pos]
-	call bgl_draw_gfx
+	; sprite ordering
+	mov ax,[bumper_other_y_pos]
+	sub ax,[bumper_pres_y_pos] ; difference between the two
+	cmp ax,0 ; am i above the other car?
+	jl .bumper_other_draw_above ; if so, draw above
+	call bumper_pres_draw ; otherwise, learn english you can figure it out
+	call bumper_other_draw
+	jmp .ordering_skip
+
+.bumper_other_draw_above:
+	call bumper_other_draw
+	call bumper_pres_draw
+
+.ordering_skip:
+	call bumper_pres_movement
+	call bumper_other_movement
 	
-	push word [pres_facing_left]
-	push 0
-	push bumper_pres_gfx_buffer
-	push word [background_colour]
-	push word [pres_x_pos]
-	push word [pres_y_pos]
-	call bgl_draw_gfx
+	mov ax,126
+	mov bx,[bumper_pres_x_vel]
+	shr bx,1
+	sub ax,bx
+	cmp word [background_x],ax
+	jle .background_skip
+	mov word [background_x],0
+	jmp .background_skip2
 	
-.skip:
+.background_skip:
+	cmp word [background_x],0
+	jge .background_skip2
+	mov word [background_x],ax
+
+.background_skip2:
+
+	cmp word [background_arrow_x],8
+	jge .background_arrow_skip
+	mov word [background_arrow_x],38
 	
-	; write the buffer to the screen BEFORE erasing...
-	
+.background_arrow_skip:
+	cmp word [background_arrow_x],38
+	jle .background_arrow_skip2
+	mov word [background_arrow_x],8
+.background_arrow_skip2:
+
 	mov si,0
 	
 .write_buffer_loop:
@@ -125,122 +154,23 @@ main:
 	cmp si,64000
 	jne .write_buffer_loop
 	
-	add word [other_x_pos],5
-	mov ax,[other_x_pos]
-	cmp ax,320
-	jl .yupp
-	mov word [other_x_pos],0
-.yupp:
-	; detect key presses
-	
-	xor dx,dx
-	mov dl,[pres_speed]
-	
-	cmp byte [key_states+50h],0 ; down pressed?
-	je .key_check_up ; if not, skip
-	mov ax,200-32
-	cmp word [pres_y_pos],ax ; have we reached the bottom?
-	jae .key_check_up ; if so, skip
-	add word [pres_y_pos],dx ; otherwise, move
-.key_check_up:
-	cmp byte [key_states+48h],0 ; up pressed?
-	je .key_check_left ; if not, skip
-	cmp word [pres_y_pos],0 ; have we reached the top?
-	jbe .key_check_left ; if so, skip
-	sub word [pres_y_pos],dx ; otherwise, move
-.key_check_left:
-	cmp byte [key_states+4bh],0 ; left pressed?
-	je .key_check_right ; if not, skip
-	cmp word [pres_x_pos],0 ; have we reached the left?
-	jbe .key_check_right ; if so, skip
-	sub word [pres_x_pos],dx ; otherwise, move
-	mov byte [pres_facing_left],1
-.key_check_right:
-	cmp byte [key_states+4dh],0 ; right pressed?
-	je .key_check_end ; if not, skip
-	mov ax,320-48
-	cmp word [pres_x_pos],ax ; have we reached the right?
-	jae .key_check_end ; if so, skip
-	add word [pres_x_pos],dx ; otherwise, move
-	mov byte [pres_facing_left],0
-.key_check_end:
-	jmp .loop
-	
-collision_check:
-    mov byte [collision_flag],0
-	
-	; I have no clue why I had to use jbe for all of these, I tried the "logical choice" and it just didn't work.
-	; If I had to guess why, it's because the result of all these comparisons will be negative if false.
-	
-	mov ax,[collision_x2]
-	add ax,[collision_w2]
-	cmp ax,[collision_x1]
-	jbe .skip
-	mov ax,[collision_x1]
-	add ax,[collision_w1]
-	cmp ax,[collision_x2]
-	jbe .skip
-	mov ax,[collision_y2]
-	add ax,[collision_h2]
-	cmp ax,[collision_y1]
-	jbe .skip
-	mov ax,[collision_y1]
-	add ax,[collision_h1]
-	cmp ax,[collision_y2]
-	jbe .skip
-	
-	mov byte [collision_flag],1
-.skip:
-	ret
-	
-key_handler:
-	push ax
-	push bx
-	
-	in al,60h ; get keyboard stuff
-	xor ah,ah
-	mov bx,ax
-	and bx,127 ; last 7 bits (bx): scan code
-	shl ax,1 ; first bit (ah): press/release
-	xor ah,1
-	mov [key_states+bx],ah ; move press/release state to the appropriate index
-	mov al,20h
-	out 20h,al
-	
-	pop bx
-	pop ax
-	iret
+	jmp main ; jump back to the main loop
+
 	
 sprite_buffer_segment dw 0
-key_states times 128 db 0
-background_colour db 1 ; colour index for all "sprites"
-collision_x1 dw 0
-collision_x2 dw 0
-collision_y1 dw 0
-collision_y2 dw 0
-collision_w1 dw 0
-collision_w2 dw 0
-collision_h1 dw 0
-collision_h2 dw 0
+background_colour db 7 ; colour index for all "sprites"
 collision_flag db 0
 
-pres_x_pos dw 0
-pres_y_pos dw 0
-pres_speed db 2
-pres_facing_left db 0
-other_x_pos dw 255-48
-other_y_pos dw 10h
-
-bumper_pres_gfx: db "bumper_pres.gfx",0
-bumper_cool_gfx: db "bumper_cool.gfx",0
-bumper_cool_2_gfx: db "bumper_cool_2.gfx",0
-bumper_dog_gfx: db "bumper_dog.gfx",0
-bumper_woah_gfx: db "bumper_woah.gfx",0
-bumper_rye_gfx: db "bumper_rye.gfx",0
-
-bumper_pres_gfx_buffer: times 602h db 0
-bumper_other_gfx_buffer: times 602h db 0
 msg: db "oops something bad has bappened",13,10,"$" ; have you seen my floury baps? my floury baps are floury. greggs.
 col_msg: db "CRITTICKAL HIT!!!$"
 	
 %include "..\bgl.asm"
+%include "bumper.asm"
+
+background_road_gfx: incbin "background_road.gfx"
+background_chunk_gfx: incbin "background_chunk.gfx"
+background_arrow_gfx: incbin "background_arrow.gfx"
+background_draw_x dw 0
+background_x dw 0
+background_arrow_x dw 38
+road_start_y dw 70

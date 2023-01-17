@@ -1,0 +1,76 @@
+bumper_other_x_pos dw 255-48
+bumper_other_y_pos dw 90
+bumper_other_moving_up db 0
+bumper_other_moving_left db 0
+bumper_other_speed db 2
+
+bumper_cool_gfx: incbin "bumper_cool.gfx"
+bumper_cool_2_gfx: incbin "bumper_cool_2.gfx"
+bumper_dog_gfx: incbin "bumper_dog.gfx"
+bumper_woah_gfx: incbin "bumper_woah.gfx"
+bumper_rye_gfx: incbin "bumper_rye.gfx"
+
+bumper_other_draw:
+	mov byte [bgl_opaque],0
+	mov al,[bumper_other_moving_left]
+	mov byte [bgl_flip],al
+	;mov al,[bgl_collision_flag]
+	mov byte [bgl_erase],0
+	mov ax,bumper_cool_gfx
+	mov word [bgl_buffer_offset],ax
+	;mov al,[background_colour]
+	;mov byte [bgl_background_colour],al
+	mov ax,[bumper_other_x_pos]
+	mov word [bgl_x_pos],ax
+	mov ax,[bumper_other_y_pos]
+	mov word [bgl_y_pos],ax
+	call bgl_draw_gfx
+	ret
+	
+bumper_other_movement:
+	cmp byte [bumper_other_moving_up],0 ; moving up?
+	jne .skip ; if not, skip
+	dec word [bumper_other_y_pos]
+	jmp .bound_check
+
+.skip:
+	inc word [bumper_other_y_pos]
+
+.bound_check:
+	cmp word [bumper_other_y_pos],200-32 ; reached the bottom of the screen? (-height)
+	jl .bound_check_skip ; if not, skip
+	not byte [bumper_other_moving_up]
+	
+.bound_check_skip:
+	mov ax,[road_start_y]
+	sub ax,16 ; half the height
+	cmp word [bumper_other_y_pos],ax ; reached the top?
+	jg .bound_check_skip2 ; if not, skip
+	not byte [bumper_other_moving_up]
+
+.bound_check_skip2:
+	xor ax,ax
+	mov al,[bumper_other_speed]
+	cmp byte [bumper_other_moving_left],0 ; moving left?
+	jne .skip2 ; if not, skip
+	add word [bumper_other_x_pos],ax
+	jmp .skip3
+.skip2:
+	sub word [bumper_other_x_pos],ax
+.skip3:
+	mov ax,[bumper_pres_x_vel]
+	sub word [bumper_other_x_pos],ax
+	
+	mov ax,[bumper_other_x_pos]
+	cmp ax,320
+	jl .bound_check_skip3
+	mov word [bumper_other_x_pos],0
+	
+.bound_check_skip3:
+	mov ax,[bumper_other_x_pos]
+	cmp ax,-48
+	jg .skip_end
+	mov word [bumper_other_x_pos],320
+	
+.skip_end:
+	ret
