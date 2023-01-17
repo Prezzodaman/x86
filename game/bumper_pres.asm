@@ -67,6 +67,14 @@ bumper_pres_movement:
 	jg .move_right ; if not, skip
 	mov byte [smoke_puff_visible],0
 	jmp .move_right
+	
+	mov ax,[bumper_pres_x_vel]
+	cmp byte [bumper_pres_moving_left],0 ; am i moving left?
+	jne .smoke_puff_move_skip2 ; if not, skip
+	sub word [smoke_puff_x_pos],ax
+	jmp .move_right
+.smoke_puff_move_skip2:
+	add word [smoke_puff_x_pos],ax
 
 .move_right:
 	cmp byte [bumper_pres_moving_left],0 ; facing left?
