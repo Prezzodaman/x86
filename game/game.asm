@@ -23,6 +23,9 @@
 	shl ax,5 ; multiply by 32
 	mov fs,ax ; fs is the temporary graphics buffer
 	
+	mov ax,[bumper_other_speed]
+	mov word [bumper_other_x_vel],ax
+	
 main:
 
 .flood_fill_top:	
@@ -76,7 +79,7 @@ main:
 	add ax,62
 	inc cx
 	cmp cx,9
-	jb .background_loop
+	jl .background_loop
 
 .background_arrows:
 	mov ax,[background_arrow_x]
@@ -96,24 +99,24 @@ main:
 	add ax,32
 	inc cx
 	cmp cx,12
-	jb .background_arrows_loop
+	jl .background_arrows_loop
 
 	; draw sprites
 	
 	call bumper_collisions ; collisions first!
 	
 	; sprite ordering
-	mov ax,[bumper_other_y_pos]
-	sub ax,[bumper_pres_y_pos] ; difference between the two
+	mov ax,[bumper_pres_y_pos]
+	sub ax,[bumper_other_y_pos] ; difference between the two
 	cmp ax,0 ; am i above the other car?
-	jl .bumper_other_draw_above ; if so, draw above
-	call bumper_pres_draw ; otherwise, learn english you can figure it out
-	call bumper_other_draw
+	jl .bumper_other_draw_below ; if so, draw above
+	call bumper_other_draw ; otherwise, learn english you can figure it out
+	call bumper_pres_draw
 	jmp .ordering_skip
 
-.bumper_other_draw_above:
-	call bumper_other_draw
+.bumper_other_draw_below:
 	call bumper_pres_draw
+	call bumper_other_draw
 
 .ordering_skip:
 	call bumper_pres_movement
@@ -154,6 +157,12 @@ main:
 	cmp si,64000
 	jne .write_buffer_loop
 	
+	cmp word [bgl_key_states+1],0
+	je .exit_skip
+	mov ah,41h
+	int 21h
+	
+.exit_skip:
 	jmp main ; jump back to the main loop
 
 	
@@ -165,6 +174,7 @@ msg: db "oops something bad has bappened",13,10,"$" ; have you seen my floury ba
 col_msg: db "CRITTICKAL HIT!!!$"
 	
 %include "..\bgl.asm"
+%include "..\beeplib.asm"
 %include "bumper.asm"
 
 background_road_gfx: incbin "background_road.gfx"

@@ -2,7 +2,7 @@ bumper_pres_x_pos dw 160-24
 bumper_pres_y_pos dw 80
 bumper_pres_x_vel dw 0
 bumper_pres_x_vel_max db 8
-bumper_pres_speed dw 3
+bumper_pres_speed dw 5
 bumper_pres_facing_left db 0 ; visual
 bumper_pres_moving_left db 0 ; movement
 bumper_pres_gfx: incbin "bumper_pres.gfx"
@@ -12,7 +12,7 @@ smoke_puff_y_pos dw 0
 smoke_puff_x_vel dw 0
 smoke_puff_visible db 0
 smoke_puff_moving_left db 0
-	
+
 bumper_pres_draw:
 	mov byte [bgl_opaque],0
 	mov al,[bumper_pres_facing_left]
@@ -71,10 +71,10 @@ bumper_pres_movement:
 	mov ax,[bumper_pres_x_vel]
 	cmp byte [bumper_pres_moving_left],0 ; am i moving left?
 	jne .smoke_puff_move_skip2 ; if not, skip
-	sub word [smoke_puff_x_pos],ax
+	add word [smoke_puff_x_pos],ax
 	jmp .move_right
 .smoke_puff_move_skip2:
-	add word [smoke_puff_x_pos],ax
+	sub word [smoke_puff_x_pos],ax
 
 .move_right:
 	cmp byte [bumper_pres_moving_left],0 ; facing left?
@@ -112,6 +112,8 @@ bumper_pres_movement:
 	sub word [bumper_pres_y_pos],ax
 
 .key_check_left:
+	cmp byte [bumper_collision_flag],0 ; have i collided with a car?
+	jne .bumper_collision ; if so, remove my ability to move left or right
 	cmp word [bgl_key_states+4bh],0 ; left pressed?
 	je .key_check_right ; if not, skip
 	
@@ -121,10 +123,10 @@ bumper_pres_movement:
 	shr word [bumper_pres_x_vel],3
 	
 .key_check_left_skip:
-	mov byte [bumper_pres_facing_left],1
-	mov byte [bumper_pres_moving_left],1
+	mov byte [bumper_pres_facing_left],-1 ; using -1 because using "not" is easier
+	mov byte [bumper_pres_moving_left],-1
 	inc word [bumper_pres_x_vel]
-	jmp .key_check_end ; done checking for the left and right
+	jmp .skip_end ; done checking for the left and right
 
 .key_check_right:
 	cmp word [bgl_key_states+4dh],0 ; right pressed?
@@ -140,14 +142,23 @@ bumper_pres_movement:
 	mov byte [bumper_pres_facing_left],0
 	mov byte [bumper_pres_moving_left],0
 	inc word [bumper_pres_x_vel]
-	jmp .key_check_end ; done checking for the left and right
+	jmp .skip_end ; done checking for the left and right
 	
 .key_check_neither: ; if neither left or right is pressed, decrease the x vel until reaches 0
 	cmp word [bumper_pres_x_vel],0
-	je .key_check_end
+	je .skip_end
 	dec word [bumper_pres_x_vel]
+	jmp .skip_end
 	
-.key_check_end:
+.bumper_collision:
+	cmp word [bumper_pres_x_vel],0 ; has my x vel reached 0 yet?
+	je .bumper_collision_skip ; if so, restore my ability to move left and right
+	dec word [bumper_pres_x_vel] ; if not, decrease it until it reaches 0
+	jmp .skip_end
+.bumper_collision_skip:
+	mov byte [bumper_collision_flag],0
+
+.skip_end:
 	ret
 	
 smoke_puff_appear:
