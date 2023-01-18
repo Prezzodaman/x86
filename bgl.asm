@@ -104,7 +104,7 @@ bgl_draw_gfx:
 	mov ax,cx
 	sub ax,[bgl_x_pos] ; new x - original x
 	cmp al,[bgl_width] ; reached the end of the line?
-	jb .loop ; if not, go to next horizontal pixel
+	jl .loop ; if not, go to next horizontal pixel
 	mov cx,[bgl_x_pos] ; we've reached the end of the line, so reset x and increase y
 	jmp .skip5
 .skip4:
@@ -121,7 +121,7 @@ bgl_draw_gfx:
 	mov ax,dx
 	sub ax,[bgl_y_pos] ; new y - original y
 	cmp al,[bgl_height] ; reached the bottom of the graphic?
-	jb .loop ; if not, go to next line
+	jl .loop ; if not, go to next line
 	
 	pop si
 	pop dx
@@ -135,25 +135,25 @@ bgl_collision_check:
 	
     mov byte [bgl_collision_flag],0
 	
-	; I have no clue why I had to use jb for all of these, I tried the "logical choice" and it just didn't work.
+	; I have no clue why I had to use jl for all of these, I tried the "logical choice" and it just didn't work.
 	; If I had to guess why, it's because the result of all these comparisons will be negative if false.
 	
 	mov ax,[bgl_collision_x2]
 	add ax,[bgl_collision_w2]
 	cmp ax,[bgl_collision_x1]
-	jb .skip
+	jl .skip
 	mov ax,[bgl_collision_x1]
 	add ax,[bgl_collision_w1]
 	cmp ax,[bgl_collision_x2]
-	jb .skip
+	jl .skip
 	mov ax,[bgl_collision_y2]
 	add ax,[bgl_collision_h2]
 	cmp ax,[bgl_collision_y1]
-	jb .skip
+	jl .skip
 	mov ax,[bgl_collision_y1]
 	add ax,[bgl_collision_h1]
 	cmp ax,[bgl_collision_y2]
-	jb .skip
+	jl .skip
 	
 	mov byte [bgl_collision_flag],1
 .skip:
