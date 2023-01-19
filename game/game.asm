@@ -2,10 +2,7 @@
 	org 100h
 	
 	call bgl_get_orig_key_handler
-
-	mov dx,bgl_key_handler ; replace the default key handler with our own
-	mov ax,2509h
-	int 21h
+	call bgl_replace_key_handler
 
     mov al,13h ; graphics mode: 13h (256 colour vga)
     xor ah,ah ; function number
