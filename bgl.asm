@@ -200,3 +200,13 @@ bgl_restore_orig_key_handler:
 	pop ds
 	pop dx
 	ret
+
+bgl_replace_key_handler:
+	push dx
+	push ax
+	mov dx,bgl_key_handler ; replace the default key handler with our own
+	mov ax,2509h
+	int 21h
+	pop ax
+	pop dx
+	ret
