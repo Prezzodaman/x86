@@ -23,6 +23,7 @@ bgl_collision_w2 dw 0
 bgl_collision_h1 dw 0
 bgl_collision_h2 dw 0
 bgl_key_states times 128 db 0
+bgl_key_handler_orig dw 0,0
 
 bgl_draw_gfx:
 	push ax
@@ -177,3 +178,25 @@ bgl_key_handler:
 	pop bx
 	pop ax
 	iret
+	
+bgl_get_orig_key_handler:
+	push bx
+	push es
+	mov ax,3509h ; get address of original key handler
+	int 21h
+	mov [bgl_key_handler_orig],bx ; offset
+	mov [bgl_key_handler_orig+2],es	; segment
+	pop es
+	pop bx
+	ret
+	
+bgl_restore_orig_key_handler:
+	push dx
+	push ds
+	mov dx,[bgl_key_handler_orig]
+	mov ds,[bgl_key_handler_orig+2]
+	mov ax,2509h
+	int 21h
+	pop ds
+	pop dx
+	ret
