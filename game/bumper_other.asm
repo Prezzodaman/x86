@@ -18,8 +18,9 @@ bumper_other_draw:
 	mov byte [bgl_opaque],0
 	mov al,[bumper_other_facing_left]
 	mov byte [bgl_flip],al
-	mov al,[bgl_collision_flag]
-	mov byte [bgl_erase],al
+	;mov al,[bgl_collision_flag]
+	;mov byte [bgl_erase],al
+	mov byte [bgl_erase],0
 	mov ax,bumper_cool_gfx
 	mov word [bgl_buffer_offset],ax
 	;mov al,[background_colour]

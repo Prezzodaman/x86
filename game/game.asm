@@ -1,5 +1,7 @@
 	
 	org 100h
+	
+	call bgl_get_orig_key_handler
 
 	mov dx,bgl_key_handler ; replace the default key handler with our own
 	mov ax,2509h
@@ -119,6 +121,7 @@ main:
 	call bumper_other_draw
 
 .ordering_skip:
+	
 	call bumper_pres_movement
 	call bumper_other_movement
 	
@@ -148,6 +151,60 @@ main:
 	mov word [background_arrow_x],8
 .background_arrow_skip2:
 
+.draw_score:
+	; draw score above everything
+	
+	mov cx,0 ; counter
+	mov bx,0 ; offset
+	mov byte [bgl_opaque],0
+	mov byte [bgl_flip],0
+	mov byte [bgl_erase],0
+	mov ax,text_score_gfx
+	mov word [bgl_buffer_offset],ax
+	mov ax,[text_score_y]
+	mov word [bgl_y_pos],ax
+	mov ax,[text_score_x_start] ; doing this after, so we can have some fun with ax
+	mov word [bgl_x_pos],ax
+	call bgl_draw_gfx
+	mov ax,[game_score]
+	mov word [game_score_divisor],ax
+	mov ax,[text_score_x]
+	mov word [text_score_x_start],ax
+	add ax,38 ; end of score display
+	add ax,10*5
+
+.draw_score_loop:
+	push ax ;;
+	mov ax,[game_score_divisor]
+	mov bx,10
+	div bx ; game_score/10 - the one digit will be in dx
+	mov word [game_score_divisor],ax
+	
+	mov ax,dx ; move remainder into ax so we can multiply (mul acts on ax)
+	mov bx,66 ; 66 = size of one number
+	mul bx ; ax*=66
+	push ax ; push remainder to stack
+	
+	xor dx,dx ; clear remainder
+	
+	pop bx ; get remainder from stack
+	mov ax,text_score_numbers_gfx
+	add ax,bx ; offset the... offset
+	mov word [bgl_buffer_offset],ax
+
+	cmp cx,5 ; reached the last digit?
+	je .draw_score_done ; if so, finish drawing
+	inc cx ; otherwise, continue
+	
+	pop ax ;;
+	sub ax,9 ; spacing between numbers
+	mov word [bgl_x_pos],ax
+	
+	call bgl_draw_gfx
+	jmp .draw_score_loop
+	
+.draw_score_done:
+	inc word [game_score]
 	mov si,0
 	
 .write_buffer_loop:
@@ -159,19 +216,31 @@ main:
 	
 	cmp word [bgl_key_states+1],0
 	je .exit_skip
-	mov ah,41h
-	int 21h
+	jmp .end_of
 	
 .exit_skip:
 	jmp main ; jump back to the main loop
 
+.end_of:
+	call bgl_restore_orig_key_handler
+	
+	mov al,2 ; restore graphics mode
+	mov ah,0
+	int 10h
+	
+	mov dx,end_message ; say a nice little message :)
+	mov ah,9
+	int 21h
+	
+	mov ah,4ch ; back to command line
+	int 21h
 	
 sprite_buffer_segment dw 0
 background_colour db 7 ; colour index for all "sprites"
 collision_flag db 0
 
 msg: db "oops something bad has bappened",13,10,"$" ; have you seen my floury baps? my floury baps are floury. greggs.
-col_msg: db "CRITTICKAL HIT!!!$"
+end_message: db "Thank you for playing!",13,10,"$"
 	
 %include "..\bgl.asm"
 %include "..\beeplib.asm"
@@ -184,3 +253,21 @@ background_draw_x dw 0
 background_x dw 0
 background_arrow_x dw 38
 road_start_y dw 70
+
+game_score dw 0
+game_score_divisor dw 0
+text_score_gfx: incbin "text_score.gfx"
+text_score_numbers_gfx:
+	incbin "text_score_0.gfx"
+	incbin "text_score_1.gfx"
+	incbin "text_score_2.gfx"
+	incbin "text_score_3.gfx"
+	incbin "text_score_4.gfx"
+	incbin "text_score_5.gfx"
+	incbin "text_score_6.gfx"
+	incbin "text_score_7.gfx"
+	incbin "text_score_8.gfx"
+	incbin "text_score_9.gfx"
+text_score_x dw 10
+text_score_x_start dw 10
+text_score_y dw 180
