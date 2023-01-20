@@ -71,13 +71,14 @@ beep_handler:
 	
 beep_play_sample:
 	mov word [beep_sample_speed],cx
+	mov word [beep_sample_length],dx
 	push bx
 	push cx
 	push dx
 	
 	mov bx,0 ; offset (increased once all bits processed)
 	mov cx,0 ; bit counter
-	mov dx,pwm_file_length ; length of file
+	mov dx,[beep_sample_length] ; length of file
 	
 .loop:
 	mov al,[si+bx]
@@ -117,3 +118,4 @@ beep_sfx_state db 0
 beep_sfx_offset dw 0
 beep_sfx_playing db 0
 beep_sample_speed dw 0
+beep_sample_length dw 0
