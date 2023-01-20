@@ -22,3 +22,38 @@ beep_off:
 	out 61h,al
 	pop ax
 	ret
+	
+beep_play_sfx:
+	mov word [beep_sfx_offset],si
+	mov byte [beep_sfx_state],0
+	mov byte [beep_sfx_playing],1
+	ret
+	
+beep_handler:
+	push dx
+	push si
+	push bx
+	mov si,[beep_sfx_offset]
+	cmp byte [beep_sfx_playing],0 ; playing a sound?
+	je .end ; if not, do nothing
+	xor bx,bx
+	mov	bl,[beep_sfx_state]
+	shl bx,1 ; each beep is a word, so multiply by 2
+	mov dx,[si+bx] ; beep the appropriate beep
+	cmp dx,0 ; check that the beep value is non zero before beeping
+	je .stop ; if it's zero, stop beeping
+	call beep_on ; if it's non zero, beep!
+	inc byte [beep_sfx_state] ; once beeped, go to next beep
+	jmp .end
+.stop:
+	call beep_off
+	mov byte [beep_sfx_playing],0
+.end:
+	pop bx
+	pop si
+	pop dx
+	ret
+	
+beep_sfx_state db 0
+beep_sfx_offset dw 0
+beep_sfx_playing db 0
