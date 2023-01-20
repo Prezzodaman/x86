@@ -1,7 +1,5 @@
 ; BGL (best graphics library)
 ; by: me
-;
-; fs MUST contain offset of video buffer!!
 
 bgl_flip db 0
 bgl_erase db 0
@@ -24,6 +22,7 @@ bgl_collision_h1 dw 0
 bgl_collision_h2 dw 0
 bgl_key_states times 128 db 0
 bgl_key_handler_orig dw 0,0
+bgl_buffer_segment dw 0
 
 bgl_draw_gfx:
 	push ax
@@ -105,11 +104,10 @@ bgl_draw_gfx:
 	mov ax,cx
 	sub ax,[bgl_x_pos] ; new x - original x
 	cmp al,[bgl_width] ; reached the end of the line?
-	jl .loop ; if not, go to next horizontal pixel
+	jb .loop ; if not, go to next horizontal pixel (using unsigned checks to support widths over 127)
 	mov cx,[bgl_x_pos] ; we've reached the end of the line, so reset x and increase y
 	jmp .skip5
 .skip4:
-	xor cx,cx
 	mov cx,[bgl_x_pos]
 	push ax
 	xor ax,ax
@@ -122,7 +120,7 @@ bgl_draw_gfx:
 	mov ax,dx
 	sub ax,[bgl_y_pos] ; new y - original y
 	cmp al,[bgl_height] ; reached the bottom of the graphic?
-	jl .loop ; if not, go to next line
+	jb .loop ; if not, go to next line (using unsigned checks to support heights over 127)
 	
 	pop si
 	pop dx
@@ -209,4 +207,70 @@ bgl_replace_key_handler:
 	int 21h
 	pop ax
 	pop dx
+	ret
+	
+bgl_wait_retrace:
+	push ax
+	push dx
+	
+.wait_for:
+	mov dx,3dah ; FREEDAH!!
+	in al,dx
+	test al,8
+	je .wait_for
+	
+.wait_after:
+	in al,dx
+	test al,8
+	jne .wait_after
+	
+	pop dx
+	pop ax
+	ret
+	
+bgl_init:
+	push ax
+	push bx
+	
+    mov al,13h ; graphics mode: 13h (256 colour vga)
+    xor ah,ah ; function number
+    int 10h
+	
+	mov ax,0a000h
+	mov es,ax ; es Should(tm) always contain the vga memory address
+	
+	mov ah,48h ; allocate memory for the vga buffer
+	mov bx,64000 ; how many paragraphs to allocate
+	; (we're doing it in bytes then converting to "paragraphs" because it's easier for me to read)
+	shr bx,4 ; divide by 16
+	int 21h
+	mov word [bgl_buffer_segment],ax ; hoohohoho we got a little chunk of memory all to ourselves
+
+	mov ax,bgl_buffer_segment
+	shl ax,5 ; multiply by 32
+	mov fs,ax ; fs is the temporary graphics buffer
+	
+	pop bx
+	pop ax
+	ret
+	
+bgl_write_buffer:
+	mov si,0
+.loop:
+	mov al,[fs:si] ; get value from buffer
+	mov byte [es:si],al ; write this value to the video memory
+	inc si
+	cmp si,64000
+	jne .loop
+	ret
+	
+bgl_flood_fill:
+	push ax
+	mov di,0
+.loop:
+	mov byte [fs:di],al
+	inc di
+	cmp di,64000
+	jne .loop
+	pop ax
 	ret
