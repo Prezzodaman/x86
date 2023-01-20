@@ -69,6 +69,51 @@ beep_handler:
 	pop dx
 	ret
 	
+beep_play_sample:
+	mov word [beep_sample_speed],cx
+	push bx
+	push cx
+	push dx
+	
+	mov bx,0 ; offset (increased once all bits processed)
+	mov cx,0 ; bit counter
+	mov dx,pwm_file_length ; length of file
+	
+.loop:
+	mov al,[si+bx]
+	inc bx
+.loop_shift:
+
+	push cx
+	mov cx,[beep_sample_speed]
+.wait:
+	nop
+	dec cx
+	cmp cx,0
+	jne .wait
+	pop cx
+	
+	shl al,1 ; get bit from the left
+	jc .loop_beep_on ; if the bit's a 1, turn on the speaker
+	call beep_off ; if the bit's a 0, turn off the speaker
+	jmp .loop_skip
+.loop_beep_on:
+	call beep_on
+.loop_skip:
+	inc cx
+	cmp cx,7 ; reached last bit?
+	jne .loop_shift ; if not, keep shifting
+	mov cx,0 ; otherwise, reset counter
+	dec dx ; file length
+	cmp dx,0 ; reached end of file?
+	jne .loop ; if not, go to next bit
+	
+	pop dx
+	pop cx
+	pop bx
+	ret
+	
 beep_sfx_state db 0
 beep_sfx_offset dw 0
 beep_sfx_playing db 0
+beep_sample_speed dw 0
