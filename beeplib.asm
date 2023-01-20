@@ -1,8 +1,16 @@
 beep_on:
 	push ax
-	push dx
 	mov al,182
 	out 43h,al
+
+	mov al,00000011b ; connect speaker to timer 2
+	out 61h,al
+	pop ax
+	ret
+	
+beep_change:
+	push ax
+	push dx
 
 	mov ax,dx
 	out 42h,al ; low byte...
@@ -27,6 +35,7 @@ beep_play_sfx:
 	mov word [beep_sfx_offset],si
 	mov byte [beep_sfx_state],0
 	mov byte [beep_sfx_playing],1
+	call beep_on
 	ret
 	
 beep_handler:
@@ -42,7 +51,13 @@ beep_handler:
 	mov dx,[si+bx] ; beep the appropriate beep
 	cmp dx,0 ; check that the beep value is non zero before beeping
 	je .stop ; if it's zero, stop beeping
-	call beep_on ; if it's non zero, beep!
+	cmp dx,1 ; otherwise, check that the value is 1 (loop)
+	je .rewind ; if so, rewind
+	jmp .skip
+.rewind:
+	mov byte [beep_sfx_state],0
+.skip:
+	call beep_change ; if it's non zero, beep!
 	inc byte [beep_sfx_state] ; once beeped, go to next beep
 	jmp .end
 .stop:
