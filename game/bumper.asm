@@ -26,25 +26,37 @@ bumper_collisions:
 	
 	cmp byte [bgl_collision_flag],0 ; collision happened?
 	je .skip ; if not, skip
-	cmp byte [bumper_pres_x_vel],0 ; am i moving?
-	je .skip ; if not, skip
-	
-	; this part is probably going to take all day
-
-	; hit logic:
-	; set hit flag to true when hit, but only if my x vel is above 0
-	; then, check if hit flag is true, is so, then remove my left and right movement ONLY when x vel is 0
-
-	; bounce logic:
-	; other bumper will have an x vel. when hit, the "moving left" flag will be toggled, and while the hit flag is set, and x vel will be decreased.
-	; also while hit flag is set, check if x vel is 0, and if not, keep moving as usual.
-	; when x vel reaches 0, turn flag off again
-	; other bumper will also have a y vel, which will be set depending on whether i'm above or below
 	
 	mov byte [bumper_collision_flag],1
+	cmp word [bumper_pres_x_vel],0 ; is my x vel 0?
+	jne .vel_skip ; if not, skip
+	mov ax,[bumper_other_x_vel] ; otherwise, the other car must've hit me
+	mov word [bumper_pres_x_vel],ax
+	shl word [bumper_pres_x_vel],2 ; increase the x vel for extra bounciness
+	mov al,[bumper_other_moving_left]
+	mov byte [bumper_pres_moving_left],al
+	mov si,other_hit_sfx
+	call beep_play_sfx
+	jmp .skip
+.vel_skip:
 	not byte [bumper_pres_moving_left] ; negate x movement of just me
-	shl word [bumper_pres_x_vel],1 ; increase the x vel for extra bounciness
-	
+	dec byte [bumper_other_hit_points]
+	add word [game_score],2
+	mov si,pres_hit_sfx
+	call beep_play_sfx
+	cmp byte [bumper_other_hit_points],0 ; other bumper reached 0 hit points?
+	jne .skip ; if not, skip
+	mov ax,[bumper_other_x_pos] ; otherwise, make that mutha EXPLODE.
+	add ax,12
+	mov word [explosion_x_pos],ax
+	mov ax,[bumper_other_y_pos]
+	sub ax,12
+	mov word [explosion_y_pos],ax
+	call explosion_spawn
+	mov si,explosion_sfx
+	call beep_play_sfx
+	call bumper_other_spawn_next
+	add word [game_score],8
 .skip:
 	ret
 	

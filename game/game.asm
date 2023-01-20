@@ -22,15 +22,17 @@
 	shl ax,5 ; multiply by 32
 	mov fs,ax ; fs is the temporary graphics buffer
 	
-	mov ax,[bumper_other_speed]
-	mov word [bumper_other_x_vel],ax
+	call bumper_other_spawn_next
+	mov word [bumper_other_x_pos],255-48
+	mov ax,[road_start_y]
+	mov word [bumper_other_y_pos],ax
 	
 main:
 
 .flood_fill_top:	
 	; flood fill (background colour is iffy, so we're doing it manually)
 	mov di,0
-	mov al,15
+	mov al,1
 
 .flood_fill_top_loop:
 	mov byte [fs:di],al
@@ -57,48 +59,7 @@ main:
 	
 	; draw back-round
 	
-.background:
-	mov ax,[background_x]
-	sub ax,126
-	mov cx,0
-.background_loop:
-	mov byte [bgl_opaque],1
-	push cx
-	and cx,1
-	mov byte [bgl_flip],cl
-	pop cx
-	mov byte [bgl_erase],0
-	push ax
-	mov ax,background_chunk_gfx
-	mov word [bgl_buffer_offset],ax
-	pop ax
-	mov word [bgl_x_pos],ax
-	mov word [bgl_y_pos],14
-	call bgl_draw_gfx
-	add ax,62
-	inc cx
-	cmp cx,9
-	jl .background_loop
-
-.background_arrows:
-	mov ax,[background_arrow_x]
-	sub ax,38
-	mov cx,0
-.background_arrows_loop:
-	mov byte [bgl_opaque],1
-	mov byte [bgl_flip],0
-	mov byte [bgl_erase],0
-	push ax
-	mov ax,background_arrow_gfx
-	mov word [bgl_buffer_offset],ax
-	pop ax
-	mov word [bgl_x_pos],ax
-	mov word [bgl_y_pos],56
-	call bgl_draw_gfx
-	add ax,32
-	inc cx
-	cmp cx,12
-	jl .background_arrows_loop
+	call background_draw
 
 	; draw sprites
 	
@@ -119,89 +80,15 @@ main:
 
 .ordering_skip:
 	
+	call explosion_draw ; explosions above all
 	call bumper_pres_movement
 	call bumper_other_movement
 	
-	mov ax,126
-	mov bx,[bumper_pres_x_vel]
-	shr bx,1
-	sub ax,bx
-	cmp word [background_x],ax
-	jle .background_skip
-	mov word [background_x],0
-	jmp .background_skip2
+	call background_scroll
+	call score_draw
 	
-.background_skip:
-	cmp word [background_x],0
-	jge .background_skip2
-	mov word [background_x],ax
-
-.background_skip2:
-
-	cmp word [background_arrow_x],8
-	jge .background_arrow_skip
-	mov word [background_arrow_x],38
+	call beep_handler
 	
-.background_arrow_skip:
-	cmp word [background_arrow_x],38
-	jle .background_arrow_skip2
-	mov word [background_arrow_x],8
-.background_arrow_skip2:
-
-.draw_score:
-	; draw score above everything
-	
-	mov cx,0 ; counter
-	mov bx,0 ; offset
-	mov byte [bgl_opaque],0
-	mov byte [bgl_flip],0
-	mov byte [bgl_erase],0
-	mov ax,text_score_gfx
-	mov word [bgl_buffer_offset],ax
-	mov ax,[text_score_y]
-	mov word [bgl_y_pos],ax
-	mov ax,[text_score_x_start] ; doing this after, so we can have some fun with ax
-	mov word [bgl_x_pos],ax
-	call bgl_draw_gfx
-	mov ax,[game_score]
-	mov word [game_score_divisor],ax
-	mov ax,[text_score_x]
-	mov word [text_score_x_start],ax
-	add ax,38 ; end of score display
-	add ax,10*5
-
-.draw_score_loop:
-	push ax ;;
-	mov ax,[game_score_divisor]
-	mov bx,10
-	div bx ; game_score/10 - the one digit will be in dx
-	mov word [game_score_divisor],ax
-	
-	mov ax,dx ; move remainder into ax so we can multiply (mul acts on ax)
-	mov bx,66 ; 66 = size of one number
-	mul bx ; ax*=66
-	push ax ; push remainder to stack
-	
-	xor dx,dx ; clear remainder
-	
-	pop bx ; get remainder from stack
-	mov ax,text_score_numbers_gfx
-	add ax,bx ; offset the... offset
-	mov word [bgl_buffer_offset],ax
-
-	cmp cx,5 ; reached the last digit?
-	je .draw_score_done ; if so, finish drawing
-	inc cx ; otherwise, continue
-	
-	pop ax ;;
-	sub ax,9 ; spacing between numbers
-	mov word [bgl_x_pos],ax
-	
-	call bgl_draw_gfx
-	jmp .draw_score_loop
-	
-.draw_score_done:
-	inc word [game_score]
 	mov si,0
 	
 .write_buffer_loop:
@@ -211,14 +98,22 @@ main:
 	cmp si,64000
 	jne .write_buffer_loop
 	
-	cmp word [bgl_key_states+1],0
+	cmp word [bgl_key_states+1],0 ; escape pressed?
 	je .exit_skip
-	jmp .end_of
+	jmp end_of ; exit game
 	
 .exit_skip:
+
+.retrace_loop:
+	; wait for retrace
+	mov dx,3dah ; FREEDAH!!
+	in al,dx
+	test al,8
+	je .retrace_loop
+	
 	jmp main ; jump back to the main loop
 
-.end_of:
+end_of:
 	call bgl_restore_orig_key_handler
 	
 	mov al,2 ; restore graphics mode
@@ -242,29 +137,12 @@ end_message: db "Thank you for playing!",13,10,"$"
 %include "..\bgl.asm"
 %include "..\beeplib.asm"
 %include "bumper.asm"
+%include "background.asm"
+%include "explosion.asm"
+%include "score.asm"
 
-background_road_gfx: incbin "background_road.gfx"
-background_chunk_gfx: incbin "background_chunk.gfx"
-background_arrow_gfx: incbin "background_arrow.gfx"
-background_draw_x dw 0
-background_x dw 0
-background_arrow_x dw 38
-road_start_y dw 70
-
-game_score dw 0
-game_score_divisor dw 0
-text_score_gfx: incbin "text_score.gfx"
-text_score_numbers_gfx:
-	incbin "text_score_0.gfx"
-	incbin "text_score_1.gfx"
-	incbin "text_score_2.gfx"
-	incbin "text_score_3.gfx"
-	incbin "text_score_4.gfx"
-	incbin "text_score_5.gfx"
-	incbin "text_score_6.gfx"
-	incbin "text_score_7.gfx"
-	incbin "text_score_8.gfx"
-	incbin "text_score_9.gfx"
-text_score_x dw 10
-text_score_x_start dw 10
-text_score_y dw 180
+pres_hit_sfx dw 8000,9000,12000,16000,30000,0
+other_hit_sfx dw 5000,4000,3600,4600,8000,17000,28000,0
+bound_hit_sfx dw 8000,15000,20000,0
+explosion_sfx dw 14000,3000,13000,8000,12000,9000,8300,0
+skid_sfx dw 330,400,1,1,330,400,330,400,330,400,330,400,0

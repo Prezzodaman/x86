@@ -1,7 +1,7 @@
 bumper_pres_x_pos dw 160-24
 bumper_pres_y_pos dw 80
 bumper_pres_x_vel dw 0
-bumper_pres_x_vel_max db 8
+bumper_pres_x_vel_max dw 8
 bumper_pres_speed dw 5
 bumper_pres_facing_left db 0 ; visual
 bumper_pres_moving_left db 0 ; movement
@@ -44,12 +44,13 @@ bumper_pres_draw:
 	ret
 
 bumper_pres_movement:
-	xor ax,ax
-	mov al,[bumper_pres_x_vel_max]
+	cmp byte [bumper_collision_flag],0 ; 2 cars collided?
+	jne .vel_skip ; if so, skip
+	mov ax,[bumper_pres_x_vel_max]
 	cmp word [bumper_pres_x_vel],ax ; first check that the x vel is valid
 	jle .smoke_puff ; if it is valid, skip
 	mov word [bumper_pres_x_vel],ax ; if not, MAKE IT.
-	
+.vel_skip:
 	cmp byte [smoke_puff_visible],0 ; smoke puff visible?
 	je .smoke_puff ; if not, skip
 	
@@ -64,18 +65,27 @@ bumper_pres_movement:
 .smoke_puff_move_skip:
 	sub word [smoke_puff_y_pos],2
 	cmp word [smoke_puff_y_pos],-32 ; reached top of screen?
-	jg .move_right ; if not, skip
+	jg .explosion_move ; if not, skip
 	mov byte [smoke_puff_visible],0
-	jmp .move_right
+	jmp .explosion_move
 	
 	mov ax,[bumper_pres_x_vel]
 	cmp byte [bumper_pres_moving_left],0 ; am i moving left?
 	jne .smoke_puff_move_skip2 ; if not, skip
 	add word [smoke_puff_x_pos],ax
-	jmp .move_right
+	jmp .explosion_move
 .smoke_puff_move_skip2:
 	sub word [smoke_puff_x_pos],ax
-
+	
+.explosion_move:
+	mov ax,[bumper_pres_x_vel]
+	cmp byte [bumper_pres_moving_left],0
+	jne .explosion_move_skip
+	sub word [explosion_x_pos],ax
+	jmp .move_right
+.explosion_move_skip:
+	add word [explosion_x_pos],ax
+	
 .move_right:
 	cmp byte [bumper_pres_moving_left],0 ; facing left?
 	je .move_left ; if so, move left
@@ -98,7 +108,9 @@ bumper_pres_movement:
 .key_check_down:
 	cmp word [bgl_key_states+50h],0 ; down pressed?
 	je .key_check_up ; if not, skip
-	cmp word [bumper_pres_y_pos],200-32 ; reached the bottom of the screen?
+	mov ax,200-32
+	sub ax,[bumper_pres_speed]
+	cmp word [bumper_pres_y_pos],ax ; reached the bottom of the screen?
 	jg .key_check_up ; if so, skip
 	mov ax,[bumper_pres_speed]
 	add word [bumper_pres_y_pos],ax
@@ -106,7 +118,9 @@ bumper_pres_movement:
 .key_check_up:
 	cmp word [bgl_key_states+48h],0 ; up pressed?
 	je .key_check_left ; if not, skip
-	cmp word [bumper_pres_y_pos],48 ; reached the top of the screen?
+	mov ax,[road_start_y]
+	sub ax,24
+	cmp word [bumper_pres_y_pos],ax ; reached the top of the screen?
 	jl .key_check_left ; if so, skip
 	mov ax,[bumper_pres_speed]
 	sub word [bumper_pres_y_pos],ax
@@ -162,9 +176,9 @@ bumper_pres_movement:
 	ret
 	
 smoke_puff_appear:
-	mov al,[bumper_pres_x_vel_max]
-	shr al,2
-	cmp byte [bumper_pres_x_vel],al ; has my x vel reached the max?
+	mov ax,[bumper_pres_x_vel_max]
+	shr ax,2
+	cmp word [bumper_pres_x_vel],ax ; has my x vel reached the max?
 	jle .skip2 ; if not, skip
 	
 	cmp byte [smoke_puff_visible],0 ; smoke puff visible?
@@ -186,5 +200,7 @@ smoke_puff_appear:
 	mov ax,[bumper_pres_y_pos]
 	mov word [smoke_puff_y_pos],ax
 	mov byte [smoke_puff_visible],1
+	mov si,skid_sfx
+	call beep_play_sfx
 .skip2:
 	ret
