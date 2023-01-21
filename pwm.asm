@@ -2,7 +2,7 @@
 	org 100h
 	
 	mov si,pwm_file
-	mov cx,620
+	mov cx,62
 	mov dx,[pwm_file_length]
 	call beep_play_sample
 	

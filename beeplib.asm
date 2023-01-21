@@ -70,7 +70,11 @@ beep_handler:
 	ret
 	
 beep_play_sample:
-	mov word [beep_sample_speed],cx
+	mov al,16h ; make the timer ultra fast y'all
+	out 43h,al
+	mov al,cl
+	out 40h,al
+
 	mov word [beep_sample_length],dx
 	push bx
 	push cx
@@ -84,16 +88,18 @@ beep_play_sample:
 	mov al,[si+bx]
 	inc bx
 .loop_shift:
-
-	push cx
-	mov cx,[beep_sample_speed]
+	push bx ;
+	push es
+	mov bx,0
+	mov es,bx
+	mov bx,[es:46ch]
 .wait:
-	nop
-	dec cx
-	cmp cx,0
-	jne .wait
-	pop cx
-	
+	cmp bx,[es:46ch]
+	je .wait
+
+	pop es
+	pop bx ;
+
 	shl al,1 ; get bit from the left
 	jc .loop_beep_on ; if the bit's a 1, turn on the speaker
 	call beep_off ; if the bit's a 0, turn off the speaker
@@ -112,10 +118,14 @@ beep_play_sample:
 	pop dx
 	pop cx
 	pop bx
+	
+	mov al,16h ; slow timer down
+	out 43h,al
+	mov al,0
+	out 40h,al
 	ret
 	
 beep_sfx_state db 0
 beep_sfx_offset dw 0
 beep_sfx_playing db 0
-beep_sample_speed dw 0
 beep_sample_length dw 0
