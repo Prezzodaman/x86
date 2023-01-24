@@ -75,6 +75,8 @@ if len(sys.argv)>2:
                 file_pitch_values.append("3")
             if note=="end":
                 file_pitch_values.append("0")
+            if note=="loop":
+                file_pitch_values.append("1")
         file_finished+=",".join(file_pitch_values)
         with open(output_file,"w") as file:
             file.write(file_finished)

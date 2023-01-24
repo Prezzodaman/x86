@@ -56,6 +56,9 @@ beep_handler:
 	jmp .skip
 .rewind:
 	mov byte [beep_sfx_state],0
+	mov si,[beep_sfx_offset]
+	mov bx,0
+	mov dx,[si+bx]
 .skip:
 	call beep_change ; if it's non zero, beep!
 	inc byte [beep_sfx_state] ; once beeped, go to next beep
@@ -70,19 +73,18 @@ beep_handler:
 	ret
 	
 beep_play_sample:
-	mov al,16h ; make the timer ultra fast y'all
-	out 43h,al
-	mov al,cl
-	out 40h,al
 
-	mov word [beep_sample_length],dx
+	push ax
 	push bx
 	push cx
 	push dx
 	
+	mov al,16h ; make the timer ultra fast y'all
+	out 43h,al
+	mov al,cl
+	out 40h,al
 	mov bx,0 ; offset (increased once all bits processed)
 	mov cx,0 ; bit counter
-	mov dx,[beep_sample_length] ; length of file
 	
 .loop:
 	mov al,[si+bx]
@@ -115,17 +117,19 @@ beep_play_sample:
 	cmp dx,0 ; reached end of file?
 	jne .loop ; if not, go to next bit
 	
-	pop dx
-	pop cx
-	pop bx
-	
 	mov al,16h ; slow timer down
 	out 43h,al
 	mov al,0
 	out 40h,al
+	
+	call beep_off
+	
+	pop dx
+	pop cx
+	pop bx
+	pop ax
 	ret
 	
 beep_sfx_state db 0
 beep_sfx_offset dw 0
 beep_sfx_playing db 0
-beep_sample_length dw 0
