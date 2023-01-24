@@ -22,6 +22,7 @@ score_draw:
 	push ax ;;
 	mov ax,[game_score_divisor]
 	mov bx,10
+	xor dx,dx ; clear remainder
 	div bx ; game_score/10 - the one digit will be in dx
 	mov word [game_score_divisor],ax
 	
@@ -30,7 +31,6 @@ score_draw:
 	mul bx ; ax*=66
 	push ax ; push remainder to stack
 	
-	xor dx,dx ; clear remainder
 	
 	pop bx ; get remainder from stack
 	mov ax,text_score_numbers_gfx
@@ -38,7 +38,7 @@ score_draw:
 	mov word [bgl_buffer_offset],ax
 
 	cmp cx,5 ; reached the last digit?
-	je .end ; if so, finish drawing
+	je .men ; if so, finish drawing
 	inc cx ; otherwise, continue
 	
 	pop ax ;;
@@ -48,8 +48,36 @@ score_draw:
 	call bgl_draw_gfx
 	jmp .loop
 	
-.end:
+.men: ; best label name 2023
 	pop ax
+	mov ax,text_men_gfx
+	mov word [bgl_buffer_offset],ax
+	mov ax,[text_score_y]
+	mov word [bgl_y_pos],ax
+	mov word [bgl_x_pos],232
+	call bgl_draw_gfx
+	
+	xor cx,cx
+	mov cl,[bumper_pres_men] ; men to draw
+	cmp cx,0 ; no men?
+	je .end
+	
+	mov ax,man_icon_gfx
+	mov word [bgl_buffer_offset],ax
+	mov ax,[text_score_y]
+	sub ax,2 ; cuz
+	mov word [bgl_y_pos],ax
+	mov ax,264 ; x men: the last stand
+.men_loop:
+	mov word [bgl_x_pos],ax
+	call bgl_draw_gfx
+	dec cx
+	cmp cx,0 ; no more men left?
+	je .end ; if not, finish drawing
+	add ax,16 ; otherwise, man up
+	jmp .men_loop
+	
+.end:
 	ret
 
 game_score dw 0
@@ -69,3 +97,5 @@ text_score_numbers_gfx:
 text_score_x dw 10
 text_score_x_start dw 10
 text_score_y dw 180
+text_men_gfx: incbin "text_men.gfx"
+man_icon_gfx: incbin "man_icon.gfx"

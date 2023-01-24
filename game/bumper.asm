@@ -1,6 +1,8 @@
 bumper_collisions:
 	cmp byte [bumper_collision_flag],0 ; 2 cars collided?
 	jne .skip ; if so, skip
+	cmp byte [game_over],0
+	jne .skip
 	
 	mov ax,[bumper_pres_x_pos]
 	add al,[bumper_collision_offset]
@@ -37,6 +39,24 @@ bumper_collisions:
 	mov byte [bumper_pres_moving_left],al
 	mov si,other_hit_sfx
 	call beep_play_sfx
+	cmp byte [bumper_pres_men],0
+	je .men_skip
+	dec byte [bumper_pres_men]
+	jmp .skip
+.men_skip:
+	mov byte [bumper_pres_active],0
+	mov ax,[bumper_pres_x_pos] ; make me spontust in a combaneous fashion, consuedly
+	sub ax,4 ; fun fact: one frame of the explosion looks like a chicken nugget
+	mov word [explosion_x_pos],ax
+	mov ax,[bumper_pres_y_pos]
+	sub ax,12
+	mov word [explosion_y_pos],ax
+	call explosion_spawn
+	mov si,explosion_sfx
+	call beep_play_sfx
+	mov byte [game_over],1
+	mov byte [game_over_timer],0
+	mov byte [bumper_collision_flag],0
 	jmp .skip
 .vel_skip:
 	not byte [bumper_pres_moving_left] ; negate x movement of just me
@@ -57,11 +77,13 @@ bumper_collisions:
 	call beep_play_sfx
 	call bumper_other_spawn_next
 	add word [game_score],8
+	inc word [bumper_amount_hit]
 .skip:
 	ret
 	
 bumper_collision_offset db 14
 bumper_collision_flag db 0 ; true if two bumpers have collided
+bumper_amount_hit dw 0 ; how many bumpers have i hit?
 
 %include "bumper_pres.asm"
 %include "bumper_other.asm"

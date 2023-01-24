@@ -22,11 +22,14 @@ bumper_other_gfx: ; each one is 1,538 bytes large
 bumper_cool_2_gfx:
 	incbin "bumper_cool_2.gfx"
 
+; this bumper doesn't require initializing, it'll always be moving no matter what!
+
 bumper_other_draw:
 	inc byte [bumper_other_y_neg_chance]
-	cmp byte [bumper_other_y_neg_chance],30 ; any number really
+	cmp byte [bumper_other_y_neg_chance],70 ; any number really
 	jne .y_neg_skip
 	not byte [bumper_other_moving_up]
+	mov byte [bumper_other_y_neg_chance],0
 	
 .y_neg_skip:
 	mov al,[bumper_other_next_right]
@@ -56,7 +59,10 @@ bumper_other_draw:
 	xor bx,bx ; get x vel for this type
 	mov bl,[bumper_other_type]
 	shl bx,1
-	mov ax,[bumper_other_speed+bx]
+	
+	mov ax,[bumper_amount_hit]
+	shr ax,4 ; make the speed increase GRADUAL...
+	add ax,[bumper_other_speed+bx]
 	mov word [bumper_other_x_vel],ax
 
 	mov al,[bumper_other_facing_left]
@@ -104,7 +110,7 @@ bumper_other_movement:
 .bound_check:
 	cmp word [bumper_other_y_pos],200-32 ; reached the bottom of the screen? (-height)
 	jl .bound_check_skip ; if not, skip
-	not byte [bumper_other_moving_up]
+	mov byte [bumper_other_moving_up],-1
 	mov si,bound_hit_sfx
 	call beep_play_sfx
 	
@@ -113,7 +119,7 @@ bumper_other_movement:
 	sub ax,16 ; half the height
 	cmp word [bumper_other_y_pos],ax ; reached the top?
 	jg .bound_check_skip2 ; if not, skip
-	not byte [bumper_other_moving_up]
+	mov byte [bumper_other_moving_up],0
 	mov si,bound_hit_sfx
 	call beep_play_sfx
 
@@ -167,7 +173,7 @@ bumper_other_spawn_next:
 	shr ax,1
 	add word [bumper_other_y_vel],ax
 	
-	mov ax,[bumper_other_y_vel]
+	mov ax,[bumper_other_y_vel] ; base the "moving up" off the y vel
 	and ax,1
 	shl ax,8 ; make it ff because that's how it works
 	mov byte [bumper_other_moving_up],al

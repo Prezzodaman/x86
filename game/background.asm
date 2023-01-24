@@ -79,7 +79,7 @@ background_draw:
 	
 .flash:
 	inc byte [background_flash_delay]
-	cmp byte [background_flash_delay],6
+	cmp byte [background_flash_delay],20
 	jne .flash_skip
 	mov byte [background_flash_delay],0
 	inc byte [background_flash_frame]
@@ -89,7 +89,6 @@ background_draw:
 .flash_skip:
 	ret
 
-background_road_gfx: incbin "background_road.gfx"
 background_chunk_gfx: ; all 1,703 bytes
 	incbin "background_chunk_1.gfx"
 	incbin "background_chunk_2.gfx"

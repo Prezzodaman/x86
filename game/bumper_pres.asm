@@ -1,10 +1,14 @@
-bumper_pres_x_pos dw 160-24
-bumper_pres_y_pos dw 80
+; all the values are set in the init command, init mate
+
+bumper_pres_x_pos dw 0
+bumper_pres_y_pos dw 0
 bumper_pres_x_vel dw 0
-bumper_pres_x_vel_max dw 8
-bumper_pres_speed dw 5
+bumper_pres_x_vel_max dw 10
+bumper_pres_speed dw 6 ; vertical speed
 bumper_pres_facing_left db 0 ; visual
 bumper_pres_moving_left db 0 ; movement
+bumper_pres_men db 0 ; i love this name so much
+bumper_pres_active db 0
 bumper_pres_gfx: incbin "bumper_pres.gfx"
 smoke_puff_gfx: incbin "smoke_puff_small.gfx"
 smoke_puff_x_pos dw 0
@@ -13,7 +17,19 @@ smoke_puff_x_vel dw 0
 smoke_puff_visible db 0
 smoke_puff_moving_left db 0
 
+bumper_pres_init: ; INNIT BRUV
+	mov word [bumper_pres_x_pos],160-24
+	mov word [bumper_pres_y_pos],80
+	mov word [bumper_pres_x_vel],0
+	mov byte [bumper_pres_facing_left],0
+	mov byte [bumper_pres_moving_left],0
+	mov byte [bumper_pres_men],3 ; pres-man, that's who i am, i eat green eggs and ham
+	mov byte [bumper_pres_active],1 ; not true in real life
+	ret
+
 bumper_pres_draw:
+	cmp byte [bumper_pres_active],0
+	je .smoke_puff
 	mov byte [bgl_opaque],0
 	mov al,[bumper_pres_facing_left]
 	mov byte [bgl_flip],al
@@ -26,6 +42,20 @@ bumper_pres_draw:
 	mov word [bgl_y_pos],ax
 	call bgl_draw_gfx
 	
+;	mov bx,[bumper_pres_x_pos]
+;	add bx,6
+;.line_loop:
+;	mov byte [fs:bx],0
+;	add bx,320 ; move down one pixel
+;	mov ax,[bumper_pres_y_pos] ; figure out where to stop drawing
+;	add ax,16
+;	mov cx,320
+;	mul cx ; times my y position by 320
+;	sub ax,bx
+;	cmp ax,64000
+;	jb .line_loop
+	
+.smoke_puff:
 	; smoke puff
 	cmp byte [smoke_puff_visible],0 ; is it visible?
 	je .skip ; if not, skip
@@ -44,6 +74,12 @@ bumper_pres_draw:
 	ret
 
 bumper_pres_movement:
+	cmp byte [bumper_pres_active],0
+	jne .begin ; if i'm active, continue as usual
+	mov word [bumper_pres_x_vel],0
+	jmp .skip_end
+	
+.begin:
 	cmp byte [bumper_collision_flag],0 ; 2 cars collided?
 	jne .vel_skip ; if so, skip
 	mov ax,[bumper_pres_x_vel_max]
