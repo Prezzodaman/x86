@@ -2,7 +2,7 @@
 	org 100h
 	
 main:
-
+	call bgl_replace_key_handler
 	call bgl_init
 	
 	mov ax,2
@@ -25,6 +25,8 @@ main:
 	mov byte [bgl_erase],1
 	call gfx_draw
 	call gfx_move
+	
+	call bgl_escape_exit
 	jmp .loop
 	
 	mov ah,4ch
@@ -34,6 +36,21 @@ gfx_draw:
 	mov bx,0
 
 .loop:
+	mov ax,[x_pos+bx]
+	mov word [bgl_collision_x1],ax
+	mov ax,[y_pos+bx]
+	mov word [bgl_collision_y1],ax
+	mov word [bgl_collision_w1],12
+	mov word [bgl_collision_h1],12
+	
+	mov ax,[mouse_x_pos]
+	mov word [bgl_collision_x2],ax
+	mov ax,[mouse_y_pos]
+	mov word [bgl_collision_y2],ax
+	call bgl_point_collision_check
+	cmp byte [bgl_collision_flag],0
+	jne .skip
+	
 	mov ax,gfx
 	mov word [bgl_buffer_offset],ax
 	mov ax,[x_pos+bx]
@@ -44,6 +61,7 @@ gfx_draw:
 	mov byte [bgl_flip],0
 	call bgl_draw_gfx
 	
+.skip:
 	add bx,2
 	cmp bx,amount*2
 	jne .loop
@@ -90,9 +108,9 @@ gfx_move:
 	mov word [moving_up+bx],0
 .move_check_bottom:
 	cmp word [y_pos+bx],200-12
-	jl .move_check_end
+	jl .end
 	mov word [moving_up+bx],1
-.move_check_end:
+.end:
 	
 	add bx,2
 	cmp bx,amount*2

@@ -163,6 +163,36 @@ bgl_collision_check:
 	pop ax
 	ret	
 
+bgl_point_collision_check:
+	push ax
+	
+    mov byte [bgl_collision_flag],0
+	
+	; x2 and y2 are for the point (w2 and h2 are unused here)
+	
+	mov ax,[bgl_collision_x1]
+	cmp word [bgl_collision_x2],ax
+	jl .skip
+	
+	mov ax,[bgl_collision_x1]
+	add ax,[bgl_collision_w1]
+	cmp word [bgl_collision_x2],ax
+	jg .skip
+	
+	mov ax,[bgl_collision_y1]
+	cmp word [bgl_collision_y2],ax
+	jl .skip
+	
+	mov ax,[bgl_collision_y1]
+	add ax,[bgl_collision_h1]
+	cmp word [bgl_collision_y2],ax
+	jg .skip
+	
+	mov byte [bgl_collision_flag],1
+.skip:
+	pop ax
+	ret	
+
 bgl_key_handler:
 	push ax
 	push bx
@@ -206,6 +236,7 @@ bgl_restore_orig_key_handler:
 bgl_replace_key_handler:
 	push dx
 	push ax
+	call bgl_get_orig_key_handler
 	mov dx,bgl_key_handler ; replace the default key handler with our own
 	mov ax,2509h
 	int 21h
@@ -378,3 +409,14 @@ bgl_fade_in:
 	pop cx
 	ret
 	
+bgl_escape_exit:
+	cmp word [bgl_key_states+1],0 ; escape pressed?
+	je .skip
+	call bgl_restore_orig_key_handler
+	mov al,3
+	xor ah,ah
+	int 10h
+	mov ah,4ch
+	int 21h
+.skip:
+	ret
