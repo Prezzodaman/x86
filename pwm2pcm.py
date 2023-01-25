@@ -23,3 +23,7 @@ if len(sys.argv)>2:
             
         with open(output_file,"wb") as file:
             file.write(bytearray(file_finished))
+    else:
+        print("Input file doesn't exist!")
+else:
+    print("Input name and output name required!")

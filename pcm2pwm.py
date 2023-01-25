@@ -38,5 +38,7 @@ if len(sys.argv)==4:
                 print("Threshold must be between 0 and 255!")
         else:
             print("Threshold must be a number!")
+    else:
+        print("Input file doesn't exist!")
 else:
     print("Input name, output name and threshold required!")
