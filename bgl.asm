@@ -1,6 +1,10 @@
 ; BGL (best graphics library)
 ; by: me
 
+; references:
+;	http://www.brackeen.com/vga/index.html
+; 	https://stackoverflow.com/questions/6560343/double-buffer-video-in-assembler
+
 bgl_flip db 0
 bgl_erase db 0
 bgl_width db 0
@@ -22,7 +26,7 @@ bgl_collision_h1 dw 0
 bgl_collision_h2 dw 0
 bgl_key_states times 128 db 0
 bgl_key_handler_orig dw 0,0
-bgl_buffer_segment dw 0
+bgl_palette_segment dw 0
 
 bgl_draw_gfx:
 	push ax
@@ -239,15 +243,8 @@ bgl_init:
 	mov ax,0a000h
 	mov es,ax ; es Should(tm) always contain the vga memory address
 	
-	mov ah,48h ; allocate memory for the vga buffer
-	mov bx,64000 ; how many paragraphs to allocate
-	; (we're doing it in bytes then converting to "paragraphs" because it's easier for me to read)
-	shr bx,4 ; divide by 16
-	int 21h
-	mov word [bgl_buffer_segment],ax ; hoohohoho we got a little chunk of memory all to ourselves
-
-	mov ax,bgl_buffer_segment
-	shl ax,5 ; multiply by 32
+	mov ax, word [2] ; psp: segment of first byte beyond program (word)
+	sub ax,64000/16 ; amount of memory we want, in "segments" (16 bytes)
 	mov fs,ax ; fs is the temporary graphics buffer
 	
 	pop bx
@@ -266,11 +263,118 @@ bgl_write_buffer:
 	
 bgl_flood_fill:
 	push ax
+	push di
 	mov di,0
 .loop:
 	mov byte [fs:di],al
 	inc di
 	cmp di,64000
 	jne .loop
+	pop di
 	pop ax
 	ret
+	
+bgl_get_orig_palette:
+	push ax
+	push bx
+	push di
+	
+	;mov ah,48h ; allocate memory for the original vga palette
+	;mov bx,255/16 ; how many paragraphs to allocate
+	;int 21h ; ax will contain the address
+	
+	mov cx,0 ; colour index
+	mov di,0 ; destination index
+.loop:
+	
+	mov dx,3c9h
+	in al,dx ; r
+	mov byte [gs:di],al
+	inc di
+	in al,dx ; g
+	mov byte [gs:di],al
+	inc di
+	in al,dx ; b
+	mov byte [gs:di],al
+	inc di
+	
+	inc cx ; go to next index
+	cmp cx,255 ; reached last index?
+	je .end ; if so, end
+	jmp .loop ; otherwise, keep getting those colours
+	
+.end:
+
+	pop di
+	pop bx
+	pop ax
+	ret
+	
+bgl_fade_in:
+;	mov al,[gs:0]
+;.qw:
+;	jmp .qw
+	push cx
+	push si
+	push ax
+	push bx
+	push dx
+	
+	mov cx,0 ; colour index
+	mov si,0 ; source index
+	mov bx,1 ; fade intensity
+.palette_loop:
+	push bx
+	
+	xor ax,ax
+	mov al,cl
+	mov dx,3c8h ; colour index is in al
+	out dx,al
+	inc dx ; go to 3c9h, where you give it the rgb values
+	
+	mov al,[gs:si]
+	push dx
+	xor dx,dx
+	div bx
+	pop dx
+	out dx,al ; r
+	inc si
+	
+	mov al,[gs:si]
+	push dx
+	xor dx,dx
+	div bx
+	pop dx
+	out dx,al ; g
+	inc si
+	
+	mov al,[gs:si]
+	push dx
+	xor dx,dx
+	div bx
+	pop dx
+	out dx,al ; b
+	inc si
+	
+	pop bx
+	
+	inc cx ; next index
+	cmp cx,255 ; reached last one?
+	jne .palette_loop ; if not, update next index
+	; otherwise, reduce intensity and start again
+	
+	;call bgl_wait_retrace
+	;dec bx
+	;cmp bx,2
+	;je .end
+	;mov cx,0
+	;jmp .palette_loop
+	
+.end:
+	pop dx
+	pop bx
+	pop ax
+	pop si
+	pop cx
+	ret
+	
