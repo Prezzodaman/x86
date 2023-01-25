@@ -19,7 +19,20 @@ Performs a simple box check between two sprites. Parameters are passed using the
 - **bgl_collision_w2** - Width of the second sprite (word)
 - **bgl_collision_h2** - Height of the second sprite (word)
 
-If the two sprites collide, **bgl_collision_flag** will be set to 1, otherwise it'll be set to 0. **bgl_collision_flag** is a byte.
+If the point is anywhere inside the sprite, the byte **bgl_collision_flag** will be set to 1, otherwise it'll be set to 0.
+
+## bgl_point_collision_check
+Checks if a single point is inside a sprite, useful for checking against the mouse position. Parameters are passed using the following memory locations:
+- **bgl_collision_x1** - X position of the sprite (word)
+- **bgl_collision_y1** - Y position of the sprite (word)
+- **bgl_collision_w1** - Width of the sprite (word)
+- **bgl_collision_h1** - Height of the sprite (word)
+- **bgl_collision_x2** - X position of the point (word)
+- **bgl_collision_y2** - Y position of the point (word)
+- **bgl_collision_w2** - Unused
+- **bgl_collision_h2** - Unused
+
+If the point is anywhere inside the sprite, the byte **bgl_collision_flag** will be set to 1, otherwise it'll be set to 0.
 ## bgl_get_orig_key_handler
 Gets the location of the default key handler for later retrieval.
 ## bgl_restore_orig_key_handler
