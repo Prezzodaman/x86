@@ -4,6 +4,8 @@ Plays a sound effect at the offset specified by **si**. Sound effects are stored
 Plays a 1-bit PWM encoded sound through the PC speaker. **si** should contain the offset for the file, **dx** should contain the length of the file, and **cx** decides how fast the sound should play, with higher values resulting in slower playback. This will lock up the program temporarily as the CPU needs to dedicate all its time to playing the sound, so there are no stutters! To encode a sound, use "pcm2pwm.py" with an unsigned 8-bit wave file as the input.
 
 Please refer to "pwm.asm" for an example of this subroutine is used!
+## beep_play_pcm_sample
+Plays an 8-bit unsigned PCM sound through the PC speaker. Usage of this command is identical to **beep_play_sample**.
 ## beep_handler
 Handles playback of sound effects. Put this in your main loop!
 ## beep_on
