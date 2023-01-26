@@ -79,6 +79,12 @@ beep_play_sample:
 	push cx
 	push dx
 	
+	mov ax,1
+	out 42h,al ; low byte...
+	mov al,ah
+	out 42h,al ; high byte...
+	in al,61h
+	
 	mov al,16h ; make the timer ultra fast y'all
 	out 43h,al
 	mov al,cl
@@ -130,6 +136,69 @@ beep_play_sample:
 	pop ax
 	ret
 	
+beep_play_pcm_sample: ; si = source index, cx = speeeeeeeed, dx = length
+
+	; reference:
+	; 	https://www.youtube.com/watch?v=4SBUrv7fXqI
+	; i understand all of it, apart from outing 90h to 43h - what does that do?
+
+	push ax
+	push bx
+	push cx
+	push dx
+	
+	sub cl,16
+	mov al,16h ; speed up timer
+	out 43h,al
+	mov al,cl
+	out 40h,al
+	
+	call beep_on
+	
+	mov bx,0 ; data pointer
+	
+.loop:
+	push es ; wait...
+	push bx
+	mov bx,0
+	mov es,bx
+	mov bx,[es:46ch]
+.wait:
+	cmp bx,[es:46ch]
+	je .wait
+	pop bx
+	pop es
+	
+	; play the byte
+	
+	mov al,90h ; "set up the speaker"
+	out 43h,al
+	mov al,[si+bx] ; frequency (current sample byte)
+	shr al,1
+	add al,8 ; reduce distortion
+	out 42h,al
+	
+	inc bx ; go to next byte
+	
+	cmp bx,dx ; reached end of file?
+	jne .loop ; if not, keep going
+	
+	mov al,16h ; slow timer down
+	out 43h,al
+	mov al,0
+	out 40h,al
+	
+	call beep_off
+	
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+	ret
+	
 beep_sfx_state db 0
 beep_sfx_offset dw 0
 beep_sfx_playing db 0
+
+beep_22050 equ 62
+beep_11025 equ 62*2
