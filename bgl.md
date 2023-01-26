@@ -19,7 +19,7 @@ Performs a simple box check between two sprites. Parameters are passed using the
 - **bgl_collision_w2** - Width of the second sprite (word)
 - **bgl_collision_h2** - Height of the second sprite (word)
 
-If the point is anywhere inside the sprite, the byte **bgl_collision_flag** will be set to 1, otherwise it'll be set to 0.
+If the two boxes intersect, the byte **bgl_collision_flag** will be set to 1, otherwise it'll be set to 0.
 
 ## bgl_point_collision_check
 Checks if a single point is inside a sprite, useful for checking against the mouse position. Parameters are passed using the following memory locations:
@@ -38,11 +38,11 @@ Gets the location of the default key handler for later retrieval.
 ## bgl_restore_orig_key_handler
 Restores the default key handler. **bgl_get_orig_key_handler** must be used before this.
 ## bgl_replace_key_handler
-Replaces the default key handler with the BGL's custom one. This allows for multiple key presses to be detected at once. To get the state of a key, offset **bgl_key_states** by the scan code value of the key you want to check.
+Replaces the default key handler with the BGL's custom one, while getting the original key handler for later retrieval. The BGL's key handler allows for multiple key presses to be detected at once, and gives each key its own on/off state. To get the state of a key, offset **bgl_key_states** by the scan code value of the key you want to check.
 ## bgl_wait_retrace
-Wait for the graphical retrace period to finish. Useful for regulating the speed.
+Wait for the graphical retrace period to finish.
 ## bgl_init
-Gets the BGL's graphical capabilities ready for use by setting the graphics mode, allocating memory for the graphics buffer, and pointing **es** to the VGA buffer and **fs** to the BGL's graphics buffer.
+Gets the BGL's graphical capabilities ready for use by setting the graphics mode, "allocating" memory for the graphics buffer, pointing **es** to the VGA buffer, pointing **fs** to the BGL's graphics buffer, and clearing the contents of the BGL's buffer. If you want to draw directly to the VGA buffer, point **fs** to **es**.
 ## bgl_write_buffer
 Writes the content of the BGL's graphics buffer to the screen.
 ## bgl_flood_fill
