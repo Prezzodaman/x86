@@ -11,7 +11,7 @@ Draws a graphics file to the BGL's graphics buffer. The maximum width and height
 ## bgl_draw_font_string
 Draws a string to the screen using a custom graphics font. The graphic for each letter/number must be the exact same size, and have the same width and height. They're stored in the order 0-9, A-Z. See "font.asm" for an example. Punctuation isn't supported right now.
 
-- **bgl_font_string_offset** - The offset of the zero terminated string to draw. (word)
+- **bgl_font_string_offset** - The offset of the zero terminated string to draw. All letters must be uppercase. (word)
 - **bgl_font_offset** - The offset of the font graphics. (word)
 - **bgl_font_size** - The width/height of each character. (byte)
 -	**bgl_font_spacing** - How many pixels between each character. (byte)
