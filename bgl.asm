@@ -28,6 +28,11 @@ bgl_key_states times 128 db 0
 bgl_key_handler_orig dw 0,0
 bgl_palette_segment dw 0
 
+bgl_font_offset dw 0
+bgl_font_size db 0
+bgl_font_spacing db 0
+bgl_font_string_offset dw 0
+
 bgl_draw_gfx:
 	push ax
 	push bx
@@ -278,6 +283,9 @@ bgl_init:
 	sub ax,64000/16 ; amount of memory we want, in "segments" (16 bytes)
 	mov fs,ax ; fs is the temporary graphics buffer
 	
+	mov al,0 ; clear buffer
+	call bgl_flood_fill
+	
 	pop bx
 	pop ax
 	ret
@@ -285,9 +293,9 @@ bgl_init:
 bgl_write_buffer:
 	mov si,0
 .loop:
-	mov al,[fs:si] ; get value from buffer
-	mov byte [es:si],al ; write this value to the video memory
-	inc si
+	mov ax,[fs:si] ; get value from buffer
+	mov word [es:si],ax ; write this value to the video memory, two bytes at a time for SPEEEEEED
+	add si,2
 	cmp si,64000
 	jne .loop
 	ret
@@ -413,10 +421,153 @@ bgl_escape_exit:
 	cmp word [bgl_key_states+1],0 ; escape pressed?
 	je .skip
 	call bgl_restore_orig_key_handler
-	mov al,3
-	xor ah,ah
-	int 10h
-	mov ah,4ch
-	int 21h
+	call bgl_reset
 .skip:
 	ret
+	
+bgl_error:
+
+	push dx
+	push cx
+	push bx
+	push ax
+
+	mov al,2 ; restore graphics mode
+	xor ah,ah
+	int 10h
+	
+	mov ah,9
+	mov dx,bgl_error_message
+	int 21h
+	
+	mov cl,0
+	
+.register_loop:
+	mov ah,2
+	mov dl,"A"
+	add dl,cl
+	int 21h
+	mov dl,"X"
+	int 21h
+	mov dl,":"
+	int 21h
+	pop ax ; get last pushed register into ax
+	mov dl,ah
+	call bgl_write_hex_byte
+	mov dl,al
+	call bgl_write_hex_byte
+	mov ah,2
+	mov dl," "
+	int 21h
+	cmp cl,3
+	je .register_skip
+	inc cl
+	jmp .register_loop
+	
+.register_skip:
+	
+	mov ah,9
+	mov dx,cr_lf
+	int 21h
+	
+	mov ah,4ch ; return to command line
+	int 21h
+	ret
+	
+bgl_write_hex_byte:
+	push ax
+	push dx
+	
+	shr dl,4
+	call bgl_write_hex_digit
+	pop dx
+	
+	call bgl_write_hex_digit
+	pop ax
+	ret
+	
+bgl_write_hex_digit: ; dl: value between 0-15 (if above, it'll get the last digit, so 14 will return 4)
+	push dx
+	
+	mov al,dl
+	and al,15
+	
+	mov ah,2
+	mov dl,al
+	cmp dl,10 ; is dl (same as al for now) greater than 10?
+	jb .write ; if not, write the digit
+	add dl,7
+.write:
+	add dl,"0"
+	mov ah,2
+	int 21h
+	
+	pop dx
+	ret
+	
+bgl_draw_font_string:
+	push ax
+	push bx
+	mov ax,[bgl_x_pos]
+	push ax
+
+	xor bx,bx
+	xor ax,ax
+	mov si,[bgl_font_string_offset]
+.loop:
+	mov al,[si+bx] ; get character at position bx into al
+	cmp al,0
+	je .end
+	cmp al,"A"
+	jge .letter
+	sub al,"0" ; not greater? character is assumed to be a number
+	jmp .get_offset
+.letter:
+	sub al,55 ; start from 0, plus the 10 digits (otherwise it'll print a number)
+
+.get_offset:
+	push bx ; offset
+	cmp al,0f0h
+	je .skip
+	push ax ; character number
+	xor ax,ax
+	xor bx,bx
+	mov al,[bgl_font_size] ; size in bytes
+	mov bl,al
+	mul bx ; ax=size*size
+	mov bx,ax
+	add ax,2 ; width/height header
+	pop bx ; multiply that by the character value...
+	mul bx
+	
+	mov bx,ax ; put result into bx so we can offset
+	
+	mov ax,[bgl_font_offset]
+	add ax,bx
+	mov word [bgl_buffer_offset],ax
+	call bgl_draw_gfx
+	
+.skip:
+	xor ax,ax
+	mov al,[bgl_font_spacing]
+	add word [bgl_x_pos],ax
+	pop bx
+	inc bx
+	jmp .loop
+.end:
+
+	pop word [bgl_x_pos]
+	pop bx
+	pop ax
+	ret
+	
+bgl_reset:
+	mov al,2 ; restore graphics mode
+	xor ah,ah
+	int 10h
+	mov ah,4ch ; return to command line
+	int 21h
+	ret
+	
+bgl_error_message: db "oops something bad has bappened",13,10,"$"
+cr_lf: db 13,10,"$"
