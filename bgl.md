@@ -69,4 +69,4 @@ Gets the BGL's graphical capabilities ready for use by setting the graphics mode
 ## bgl_write_buffer
 Writes the content of the BGL's graphics buffer to the screen.
 ## bgl_flood_fill
-Fills the entirety of the BGL's graphics buffer with a colour specified by **al**. Useful as a "clear screen" command for clearing up previously drawn graphics.
+Fills the entirety of the BGL's graphics buffer with a colour specified by **al**. Useful as a "clear screen" command for clearing up previously drawn graphics. Specify the start offset using **di**, and the end offset using **cx**.
