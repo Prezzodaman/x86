@@ -206,6 +206,11 @@ bgl_draw_gfx_rle: ; "draw graphics... really?"
 	mov al,[bx+2]
 	mov byte [bgl_transparent],al
 	
+	cmp byte [bgl_opaque],0
+	je .opaque_skip
+	mov byte [bgl_transparent],255
+	
+.opaque_skip:
 	mov si,2 ; increased by 2 each time to get each byte and its repeats as a word
 	mov cx,[bgl_x_pos]
 	cmp byte [bgl_flip],0 ; drawing flipped?
