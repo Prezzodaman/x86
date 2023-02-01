@@ -8,8 +8,21 @@ Draws a graphics file to the BGL's graphics buffer. The maximum width and height
 - **bgl_opaque** - If set, the graphic will draw without transparency (byte)
 - **bgl_flip** - If set, the graphic will be flipped horizontally (byte)
 
+To convert an image to a .gfx file compatible with BGL, run **convert.py**, specifying the input file and output file. Only 24-bit PNGs are supported right now. Unless your graphic has lots of unique pixels, it's advisable to use RLE instead.
+
+## bgl_draw_gfx_rle
+Draws an RLE encoded graphics file to the BGL's graphics buffer. Usage is identical to **bgl_draw_gfx**. To convert an image to RLE, use **convert.py** the same way as before, but use the option **--rle**. It's advisable to use a different file extension to make it easier to identify an RLE encoded file.
+
+Using RLE offers a significant reduction in file size, and is also faster to draw. The BGL's implementation is slightly different than normal, in that each line is encoded individually, instead of one long stream. This makes it easier to draw the graphics, and still results in a great file size.
+
+## bgl_draw_full_gfx
+Draws a full-screen graphics file to the BGL's graphics buffer. The only required parameter is **bgl_buffer_offset**. This command is unsuitable for .com files because a full-screen graphic uses up 64k, which spans the entire memory. Therefore, it hasn't been tested, but should work just fine.
+
+## bgl_draw_full_gfx_rle
+Draws an RLE encoded full-screen graphics file to the BGL's graphics buffer. Usage is identical to **bgl_draw_full_gfx**, only this time, you can actually fit backgrounds in a .com file, making this the preferred option for drawing backgrounds.
+
 ## bgl_draw_font_string
-Draws a string to the screen using a custom graphics font. The graphic for each letter/number must be the exact same size, and have the same width and height. They're stored in the order 0-9, A-Z. See "font.asm" for an example. Punctuation isn't supported right now.
+Draws a string to the BGL's graphics buffer using a custom graphics font. The graphic for each letter/number must be the exact same size, and have the same width and height. They're stored in the order 0-9, A-Z. See "font.asm" for an example. Punctuation isn't supported right now.
 
 - **bgl_font_string_offset** - The offset of the zero terminated string to draw. All letters must be uppercase. (word)
 - **bgl_font_offset** - The offset of the font graphics. (word)
@@ -52,7 +65,7 @@ Replaces the default key handler with the BGL's custom one, while getting the or
 ## bgl_wait_retrace
 Wait for the graphical retrace period to finish.
 ## bgl_init
-Gets the BGL's graphical capabilities ready for use by setting the graphics mode, "allocating" memory for the graphics buffer, pointing **es** to the VGA buffer, pointing **fs** to the BGL's graphics buffer, and clearing the contents of the BGL's buffer. If you want to draw directly to the VGA buffer, point **fs** to **es**.
+Gets the BGL's graphical capabilities ready for use by setting the graphics mode, "allocating" memory for the graphics buffer, pointing **es** to the VGA buffer, pointing **fs** to the BGL's graphics buffer, replacing the key handler, and clearing the contents of the BGL's buffer. If you want to draw directly to the VGA buffer, point **fs** to **es**.
 ## bgl_write_buffer
 Writes the content of the BGL's graphics buffer to the screen.
 ## bgl_flood_fill
