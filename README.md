@@ -20,7 +20,7 @@ It's the thing I've written to draw graphics. It is the greatest graphics librar
 
 It uses a custom file format which is extremely simple. The first 2 bytes consist of the width and height (of course, the maximum is 255), and the rest of the bytes consist of the different colour indexes that make up the graphic. In a way, it's better than using a pre-existing format, as I have all (standard) VGA colours at my disposal. There's also support for RLE encoded graphics, which offers a significant reduction in file size, and draws a lot quicker as well! Graphics are simply included as raw files, which can then be loaded from based off the offset value. 
 
-The program **convert.py** is a simple Python script that converts an image to a compatible format. 24-bit PNGs seem to be a safe bet, as I've had issues with other bit depths. Use the option **--rle** to convert to RLE instead. BGL's implementation is a bit different than usual; see **bgl.md** for more information. It requires the Pillow library for handling images.
+The program **convert.py** is a simple Python script that converts an image to a compatible format. 24-bit PNGs seem to be a safe bet, as I've had issues with other bit depths. Use the option **--rle** to convert to RLE instead. It requires the Pillow library for handling images.
 
 It supports flipping graphics, and "clearing" them based off a background colour. This was what I used before double-buffering, so it's almost redundant, although you can use it as a sort of "silhouette" effect, and is still useful if your background colour is solid, as it'll speed things up considerably. You can also choose whether to draw them transparent or not.
 
