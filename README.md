@@ -1,5 +1,5 @@
-# 8086
-Experiments with 8086 assembly for DOS. The fun began on the 12th of January 2023, and it continues!
+# x86
+Experiments with x86 assembly for DOS. The fun began on the 12th of January 2023, and it continues!
 
 Compile these with NASM using the following command:
 ```nasm -f bin -o file.com file.asm```
