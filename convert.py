@@ -48,16 +48,16 @@ if len(sys.argv)>2:
                             colour_index_last=colour_index
                     else:
                         file_finished.append(colour_index)
-                if rle: # reset the counter on every line to make it easier to draw, with a small sacrifice on file size
-                    file_finished.append(colour_index_last)
-                    file_finished.append(rle_counter)
-                    rle_counter=0
+                #if rle: # reset the counter on every line to make it easier to draw, with a small sacrifice on file size
+                #    file_finished.append(colour_index_last)
+                #    file_finished.append(rle_counter)
+                #    rle_counter=0
             if rle:
                 file_finished.append(colour_index_last)
                 file_finished.append(rle_counter)
         with open(output_file,"bw") as file:
             file.write(bytearray(file_finished))
-        print("Converted size: " + str(len(file_finished)) + " (" + hex(len(file_finished)) + ")")
+        print("Converted file \"" + file_name + "\"! Size: " + str(len(file_finished)) + " (" + hex(len(file_finished)) + ")")
         if image.size[0]>255:
             print("WARNING: Width is greater than 255!")
         if image.size[1]>255:
