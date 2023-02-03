@@ -11,9 +11,7 @@ Draws a graphics file to the BGL's graphics buffer. The maximum width and height
 To convert an image to a .gfx file compatible with BGL, run **convert.py**, specifying the input file and output file. Only 24-bit PNGs are supported right now. Unless your graphic has lots of unique pixels, it's advisable to use RLE instead.
 
 ## bgl_draw_gfx_rle
-Draws an RLE encoded graphics file to the BGL's graphics buffer. Usage is identical to **bgl_draw_gfx**. To convert an image to RLE, use **convert.py** the same way as before, but use the option **--rle**. It's advisable to use a different file extension to make it easier to identify an RLE encoded file.
-
-Using RLE offers a significant reduction in file size, and is also faster to draw. The BGL's implementation is slightly different than normal, in that each line is encoded individually, instead of one long stream. This makes it easier to draw the graphics, and still results in a great file size.
+Draws an RLE encoded graphics file to the BGL's graphics buffer. Usage is identical to **bgl_draw_gfx**. To convert an image to RLE, use **convert.py** the same way as before, but use the option **--rle**. It's advisable to use a different file extension to make it easier to identify an RLE encoded file. Using RLE offers a significant reduction in file size, and is also faster to draw.
 
 ## bgl_draw_full_gfx
 Draws a full-screen graphics file to the BGL's graphics buffer. The only required parameter is **bgl_buffer_offset**. This command is unsuitable for .com files because a full-screen graphic uses up 64k, which spans the entire memory. Therefore, it hasn't been tested, but should work just fine.
