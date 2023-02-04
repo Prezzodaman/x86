@@ -131,6 +131,10 @@ bgl_draw_gfx:
 	ret
 	
 bgl_draw_full_gfx: ; WARNING: this is untested because a full image uses up all available space in a .com file
+	push ax
+	push bx
+	push si
+	
 	mov bx,[bgl_buffer_offset] ; starting from 2 to avoid the width/height - they're not necessary here
 	add bx,2 ; henceforth
 	mov si,0 ; "source" index (graphics/buffer offset, same in this situation)
@@ -140,16 +144,20 @@ bgl_draw_full_gfx: ; WARNING: this is untested because a full image uses up all 
 	inc si
 	cmp si,64000
 	jb .loop
+	
+	pop si
+	pop bx
+	pop ax
 	ret
 	
 bgl_draw_full_gfx_rle:
 	push ax
 	push bx
-	push cx
-	push dx
 	push si
+	push di
 	
 	mov bx,[bgl_buffer_offset]
+	mov di,0
 	mov si,2
 	mov cx,0
 	mov dx,0
@@ -164,17 +172,10 @@ bgl_draw_full_gfx_rle:
 	je .draw_loop_end ; if not, get next word
 	dec ah
 	mov word [bgl_rle_word],ax
-	
-	call bgl_get_x_y_offset ; get offset based off cx/dx and put it into di
-	
 	mov byte [fs:di],al
+	inc di
 	
-	inc cx ; increase x position
-	cmp cx,320 ; reached end of the line?
-	jne .draw_loop ; if not, continue drawing
-	inc dx ; reached end of line, increase y and reset x
-	mov cx,0
-	cmp dx,200 ; reached bottom of graphic?
+	cmp di,64000 ; reached bottom of graphic?
 	jne .draw_loop ; if not, continue drawing
 	jmp .end ; otherwise, stop drawing altogether
 	
@@ -183,9 +184,8 @@ bgl_draw_full_gfx_rle:
 	jmp .loop
 	
 .end:
+	pop di
 	pop si
-	pop dx
-	pop cx
 	pop bx
 	pop ax
 	ret
@@ -464,7 +464,7 @@ bgl_init: ; yeah mate, its bgl init bruv
 	mov cx,64000
 	call bgl_flood_fill
 	
-	call bgl_get_orig_key_handler
+	call bgl_replace_key_handler
 	
 	pop bx
 	pop ax
@@ -608,7 +608,6 @@ bgl_fade_in:
 bgl_escape_exit:
 	cmp word [bgl_key_states+1],0 ; escape pressed?
 	je .skip
-	call bgl_restore_orig_key_handler
 	call bgl_reset
 	mov ah,4ch ; return to command line
 	int 21h
