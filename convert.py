@@ -40,6 +40,10 @@ if len(sys.argv)>2:
                     if rle:
                         if colour_index_last==colour_index:
                             rle_counter+=1
+                            if rle_counter==255:
+                                file_finished.append(colour_index_last)
+                                file_finished.append(rle_counter)
+                                rle_counter=0
                         else:
                             if colour_index_last!=None:
                                 file_finished.append(colour_index_last)
@@ -48,10 +52,6 @@ if len(sys.argv)>2:
                             colour_index_last=colour_index
                     else:
                         file_finished.append(colour_index)
-                #if rle: # reset the counter on every line to make it easier to draw, with a small sacrifice on file size
-                #    file_finished.append(colour_index_last)
-                #    file_finished.append(rle_counter)
-                #    rle_counter=0
             if rle:
                 file_finished.append(colour_index_last)
                 file_finished.append(rle_counter)
