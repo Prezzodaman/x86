@@ -73,6 +73,10 @@ bgl_draw_gfx_fast:
 	inc si
 	cmp al,[bgl_transparent]
 	je .draw_skip
+	cmp byte [bgl_erase],0
+	je .erase_skip
+	mov al,[bgl_background_colour]
+.erase_skip:
 	stosb ; write the contents of al to es:di, increment di (faster than mov)
 	dec di ; remove effect of auto increment because of the skip
 .draw_skip:
