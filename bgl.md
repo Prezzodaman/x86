@@ -10,8 +10,11 @@ Draws a graphics file to the BGL's graphics buffer. The maximum width and height
 
 To convert an image to a .gfx file compatible with BGL, run **convert.py**, specifying the input file and output file. Only 24-bit PNGs are supported right now. Unless your graphic has lots of unique pixels, it's advisable to use RLE instead.
 
+## bgl_draw_gfx
+Identical to **bgl_draw_gfx**, but optimized for speed. Because of this, **bgl_flip** isn't supported, and there's no edge clipping, so graphics will still be visible if drawn outside the screen. However, it's at least 2x faster than **bgl_draw_gfx**!
+
 ## bgl_draw_gfx_rle
-Draws an RLE encoded graphics file to the BGL's graphics buffer. Usage is identical to **bgl_draw_gfx**. To convert an image to RLE, use **convert.py** the same way as before, but use the option **--rle**. It's advisable to use a different file extension to make it easier to identify an RLE encoded file. Using RLE offers a significant reduction in file size, and is also faster to draw.
+Draws an RLE encoded graphics file to the BGL's graphics buffer. Usage is identical to **bgl_draw_gfx**. To convert an image to RLE, use **convert.py** the same way as before, but use the option **--rle**. It's advisable to use a different file extension to make it easier to identify an RLE encoded file. Using RLE offers a significant reduction in file size, and is also slightly faster to draw.
 
 ## bgl_draw_full_gfx
 Draws a full-screen graphics file to the BGL's graphics buffer. The only required parameter is **bgl_buffer_offset**. This command is unsuitable for .com files because a full-screen graphic uses up 64k, which spans the entire memory. Therefore, it hasn't been tested, but should work just fine.
@@ -60,6 +63,8 @@ Gets the location of the default key handler for later retrieval.
 Restores the default key handler. **bgl_get_orig_key_handler** must be used before this.
 ## bgl_replace_key_handler
 Replaces the default key handler with the BGL's custom one, while getting the original key handler for later retrieval. The BGL's key handler allows for multiple key presses to be detected at once, and gives each key its own on/off state. To get the state of a key, offset **bgl_key_states** by the scan code value of the key you want to check.
+## bgl_escape_exit
+Checks if the escape key is pressed, and if so, exits the program. Only functional if **bgl_replace_key_handler** is used prior.
 ## bgl_wait_retrace
 Wait for the graphical retrace period to finish.
 ## bgl_init
