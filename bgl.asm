@@ -36,6 +36,7 @@ bgl_font_string_offset dw 0
 
 bgl_draw_gfx_fast:
 	push ax
+	push bx
 	push cx
 	push dx
 
@@ -87,7 +88,9 @@ bgl_draw_gfx_fast:
 	xor cx,cx ; reset x counter
 	inc dx
 	mov ax,320
-	sub al,[bgl_width]
+	xor bh,bh ; bx only used as a temporary register here
+	mov bl,[bgl_width]
+	sub ax,bx
 	add di,ax ; move down a line starting from current x
 	cmp dl,[bgl_height] ; reached baddum udda grafic?
 	jne .draw_end ; if not, skip
@@ -99,6 +102,7 @@ bgl_draw_gfx_fast:
 	pop es
 	pop dx
 	pop cx
+	pop bx
 	pop ax
 	ret
 
