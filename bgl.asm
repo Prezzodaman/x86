@@ -34,6 +34,70 @@ bgl_font_size db 0
 bgl_font_spacing db 0
 bgl_font_string_offset dw 0
 
+bgl_draw_gfx_fast:
+	push ax
+	push cx
+	push dx
+
+	; this exists as a challenge to see... just how FUAHST. i can do it.
+	; there will be sacrifices, namely the lack of edge clipping
+	; it'll draw based off a fixed offset instead of repeatedly calculating the x/y because that ate up tons of cycles
+	
+	mov si,[bgl_buffer_offset]
+	mov al,[si]
+	mov byte [bgl_width],al
+	mov al,[si+1]
+	mov byte [bgl_height],al
+	mov al,[si+2]
+	mov byte [bgl_transparent],al
+	add si,2
+	
+	cmp byte [bgl_opaque],0
+	je .opaque_skip
+	mov byte [bgl_transparent],255
+	
+.opaque_skip:
+	mov cx,[bgl_x_pos]
+	mov dx,[bgl_y_pos]
+	call bgl_get_x_y_offset ; get initial offset based off x and y
+	
+	xor cx,cx ; now we use cx and dx as x/y counters
+	xor dx,dx
+	
+	push es
+	mov ax,fs ; es is used by stosb, so make it **temporarily** point to fs
+	mov es,ax
+.draw:
+	; per byte instead of words, in case the width/height isn't a multiple of 4 (i could reinforce that, but ueeEEeeaAauAHGHgh)
+	mov al,[si]
+	inc si
+	cmp al,[bgl_transparent]
+	je .draw_skip
+	stosb ; write the contents of al to es:di, increment di (faster than mov)
+	dec di ; remove effect of auto increment because of the skip
+.draw_skip:
+	inc di
+	inc cx
+	cmp cl,[bgl_width] ; reached end of line?
+	jne .draw_end ; if not, skip
+	xor cx,cx ; reset x counter
+	inc dx
+	mov ax,320
+	sub al,[bgl_width]
+	add di,ax ; move down a line starting from current x
+	cmp dl,[bgl_height] ; reached baddum udda grafic?
+	jne .draw_end ; if not, skip
+	jmp .end ; if so, finished drawing graphic
+.draw_end:
+	jmp .draw
+	
+.end:
+	pop es
+	pop dx
+	pop cx
+	pop ax
+	ret
+
 bgl_draw_gfx:
 	push ax
 	push bx
@@ -43,21 +107,21 @@ bgl_draw_gfx:
 	
 	; graphics are stored x first, then y
 	
-	mov bx,[bgl_buffer_offset]
+	mov si,[bgl_buffer_offset]
 	
-	mov al,[bx] ; first byte should contain the width
+	mov al,[si] ; first byte should contain the width
 	mov byte [bgl_width],al
-	mov al,[bx+1] ; second byte should contain the height
+	mov al,[si+1] ; second byte should contain the height
 	mov byte [bgl_height],al
 	
-	mov al,[bx+2] ; top left pixel is assumed transparent
+	mov al,[si+2] ; top left pixel is assumed transparent
 	mov byte [bgl_transparent],al
 	cmp byte [bgl_opaque],0
 	je .opaque_skip
 	mov byte [bgl_transparent],255
 	
 .opaque_skip:
-	mov si,2 ; beginning of actual graphic data
+	add si,2 ; beginning of actual graphic data
     mov cx,[bgl_x_pos] ; x
     mov dx,[bgl_y_pos] ; y
 	
@@ -69,7 +133,7 @@ bgl_draw_gfx:
 
 .loop:
 	
-    mov al,[bx+si] ; pixel colour
+    mov al,[si] ; pixel colour
 	cmp al,[bgl_transparent]
 	je .skip ; if the pixel is "transparent", skip drawing
 	cmp cx,320
@@ -130,21 +194,23 @@ bgl_draw_gfx:
 	pop ax
 	ret
 	
-bgl_draw_full_gfx: ; WARNING: this is untested because a full image uses up all available space in a .com file
+bgl_draw_full_gfx: ; WARNING: this is STILL untested because a full image uses up all available space in a .com file
 	push ax
 	push bx
 	push si
+	push di
 	
-	mov bx,[bgl_buffer_offset] ; starting from 2 to avoid the width/height - they're not necessary here
-	add bx,2 ; henceforth
-	mov si,0 ; "source" index (graphics/buffer offset, same in this situation)
+	mov si,[bgl_buffer_offset] ; starting from 2 to avoid the width/height - they're not necessary here
+	add si,2 ; henceforth
+	xor di,di
 .loop:
-	mov al,[bx+si] ; get source pixel
-	mov byte [fs:si],al ; move to temporary graphics buffer
-	inc si
-	cmp si,64000
+	mov ax,[si] ; get source pixel
+	mov word [fs:di],ax ; move to temporary graphics buffer
+	add si,2
+	cmp si,64000/2
 	jb .loop
 	
+	pop di
 	pop si
 	pop bx
 	pop ax
@@ -156,13 +222,13 @@ bgl_draw_full_gfx_rle:
 	push si
 	push di
 	
-	mov bx,[bgl_buffer_offset]
 	mov di,0
-	mov si,2
+	mov si,[bgl_buffer_offset]
+	add si,2
 	mov cx,0
 	mov dx,0
 .loop:
-	mov ax,[bx+si] ; get the word
+	mov ax,[si] ; get the word
 	mov word [bgl_rle_word],ax
 	
 .draw_loop: ; drawing al for ah amount of times
@@ -192,18 +258,31 @@ bgl_draw_full_gfx_rle:
 
 bgl_draw_gfx_rle: ; "draw graphics... really?"
 	push ax
-	push bx
 	push cx
 	push dx
 	push si
 	
+	push es
+	
+	cmp word [bgl_x_pos],320 ; check if it's even in range before drawing
+	jge .end
+	cmp word [bgl_y_pos],200
+	jge .end
+	
+	mov ax,fs
+	mov es,ax ; for stosb
+	
+	mov cx,[bgl_x_pos]
+	mov dx,[bgl_y_pos]
+	call bgl_get_x_y_offset
+	
 .init: ; bruv
-	mov bx,[bgl_buffer_offset]
-	mov al,[bx]
+	mov si,[bgl_buffer_offset]
+	mov al,[si]
 	mov byte [bgl_width],al
-	mov al,[bx+1]
+	mov al,[si+1]
 	mov byte [bgl_height],al
-	mov al,[bx+2]
+	mov al,[si+2]
 	mov byte [bgl_transparent],al
 	
 	cmp byte [bgl_opaque],0
@@ -211,17 +290,15 @@ bgl_draw_gfx_rle: ; "draw graphics... really?"
 	mov byte [bgl_transparent],255
 	
 .opaque_skip:
-	mov si,2 ; increased by 2 each time to get each byte and its repeats as a word
-	mov cx,[bgl_x_pos]
+	xor cx,cx
+	xor dx,dx
+	
+	add si,2 ; increased by 2 each time to get each byte and its repeats as a word
 	cmp byte [bgl_flip],0 ; drawing flipped?
-	je .init_skip ; if not, skip
-	xor ah,ah
-	mov al,[bgl_width]
-	add cx,ax ; if drawing flipped, start from the right side
-.init_skip:
-	mov dx,[bgl_y_pos]
+	je .loop ; if not, skip
+	mov cl,[bgl_width] ; if drawing flipped, start from the right side
 .loop:
-	mov ax,[bx+si] ; get the word - low byte is colour index, high byte is amount of repeats
+	mov ax,[si] ; get the word - low byte is colour index, high byte is amount of repeats
 	mov word [bgl_rle_word],ax ; we'll need to affect ax later, and the stack can't be used in this situation
 	
 .draw_loop: ; drawing al for ah amount of times
@@ -232,29 +309,50 @@ bgl_draw_gfx_rle: ; "draw graphics... really?"
 	cmp ah,0 ; no more repeats?
 	je .draw_loop_end ; if not, get next word
 	dec ah ; decadecAhhh, decah decAhhh BUM. BUM. oooOOOoOoohhHYYyeEEaaAAHhhh.
-	mov word [bgl_rle_word],ax ; -- (oh yeah store it as well, that's improtant. this is the push of the figurative pop)
 	
 	; /\ the positioning of this code is very very important!!! /\
 	
 	cmp al,[bgl_transparent] ; if the pixel about to be drawn is transparent, don't even draw it, just skip
 	je .draw_loop_skip
-	cmp cx,0 ; check if x and y are within boundaries
+	
+	push ax
+	mov ax,cx
+	add ax,[bgl_x_pos]
+	cmp ax,0 ; check if x and y are within boundaries
+	pop ax
 	jl .draw_loop_skip
-	cmp cx,320
+	
+	push ax
+	mov ax,cx
+	add ax,[bgl_x_pos]
+	cmp ax,320
+	pop ax
 	jge .draw_loop_skip
-	cmp dx,0
+	
+	push ax
+	mov ax,dx
+	add ax,[bgl_y_pos]
+	cmp ax,0
+	pop ax
 	jl .draw_loop_skip
-	cmp dx,200
+	
+	push ax
+	mov ax,dx
+	add ax,[bgl_y_pos]
+	cmp ax,200
+	pop ax
 	jge .draw_loop_skip
-	call bgl_get_x_y_offset ; if it's not transparent AND it's within boundaries, get offset based off cx/dx and put it into di
 	
 	cmp byte [bgl_erase],0 ; erasing?
 	je .draw_loop_main ; if not, continue as normal
 	mov al,[bgl_background_colour] ; otherwise, replace pixel colour with the background colour
 	
 .draw_loop_main:
-	mov byte [fs:di],al ; ax still contains the word at this point, now we can do all the funky stuff
-.draw_loop_skip: ; a transparent pixel was encountered
+	stosb ; this is actually faster than moving the byte manually!
+	dec di
+.draw_loop_skip:
+	mov word [bgl_rle_word],ax
+	inc di
 	inc cx ; increase "internal" x position
 	cmp byte [bgl_flip],0 ; drawing flipped?
 	je .draw_loop_skip2 ; if not, continue as normal
@@ -262,26 +360,23 @@ bgl_draw_gfx_rle: ; "draw graphics... really?"
 .draw_loop_skip2:
 	cmp byte [bgl_flip],0 ; drawing flipped?
 	je .draw_loop_skip3 ; if not, continue as normal
-	cmp cx,[bgl_x_pos] ; if drawing flipped, simply compare the new x with the original x
+	cmp cx,0 ; if drawing flipped, simply compare the new x with the original x
 	jne .draw_loop ; haven't reached the end of the line, so continue drawing
 	jmp .draw_loop_skip4 ; reached end of line
 .draw_loop_skip3:
-	mov ax,cx
-	sub ax,[bgl_x_pos] ; new x - original x
-	cmp al,[bgl_width] ; reached end of the line?
+	cmp cl,[bgl_width] ; reached end of the line?
 	jne .draw_loop ; if not, continue drawing
 .draw_loop_skip4:
 	inc dx ; reached end of line, increase y and reset x
-	mov cx,[bgl_x_pos]
+	xor cx,cx
+	mov ax,320
+	sub al,[bgl_width]
+	add di,ax
 	cmp byte [bgl_flip],0 ; drawing flipped?
 	je .draw_loop_skip5 ; if not, continue as normal
-	xor ah,ah
-	mov al,[bgl_width]
-	add cx,ax ; if drawing flipped, start from original x + width
+	mov cl,[bgl_width]
 .draw_loop_skip5:
-	mov ax,dx
-	sub ax,[bgl_y_pos] ; new y - original y
-	cmp al,[bgl_height] ; reached bottom of graphic?
+	cmp dl,[bgl_height] ; reached bottom of graphic?
 	jne .draw_loop ; if not, continue drawing
 	jmp .end ; otherwise, stop drawing altogether
 	
@@ -290,10 +385,11 @@ bgl_draw_gfx_rle: ; "draw graphics... really?"
 	jmp .loop ; very complicated piece of code
 	
 .end:
+	pop es
+
 	pop si
 	pop dx
 	pop cx
-	pop bx
 	pop ax
 	ret
 	
@@ -456,7 +552,6 @@ bgl_init: ; yeah mate, its bgl init bruv
 	
 	mov ax, word [2] ; psp: segment of first byte beyond program (word)
 	sub ax,64000/16 ; amount of memory we want, in "segments" (16 bytes)
-	;add ax,130
 	mov fs,ax ; fs is the temporary graphics buffer
 	
 	mov al,0 ; clear buffer
@@ -473,15 +568,26 @@ bgl_init: ; yeah mate, its bgl init bruv
 bgl_write_buffer:
 	push ax
 	push si
+	push di
+	push ds
+	push es
+	push fs
 
-	mov si,0
-.loop:
-	mov ax,[fs:si] ; get value from buffer
-	mov word [es:si],ax ; write this value to the video memory, two bytes at a time for SPEEEEEED
-	add si,2
-	cmp si,64000
-	jne .loop
+	xor si,si
+	xor di,di
 	
+	mov ax,fs
+	mov ds,ax
+	mov ax,es
+	mov es,ax
+	
+	mov cx,64000/4
+	rep movsd ; ultimate speed: FOUR BYTES AT A TIME.
+	
+	pop fs
+	pop es
+	pop ds
+	pop di
 	pop si
 	pop ax
 	ret
@@ -490,12 +596,17 @@ bgl_flood_fill: ; di: start, cx: end
 	push ax
 	push di
 	push cx
+	push es
+	
+	push ax
+	mov ax,fs
+	mov es,ax
+	pop ax
+	
 	mov ah,al
-.loop:
-	mov word [fs:di],ax
-	add di,2
-	cmp di,cx
-	jb .loop
+	rep stosw
+	
+	pop es
 	pop cx
 	pop di
 	pop ax

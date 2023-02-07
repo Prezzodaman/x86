@@ -8,13 +8,16 @@ main:
 	mov ax,2
 	int 33h
 	
-	mov al,8
-	mov byte [bgl_background_colour],al
-	call bgl_flood_fill
+	
 	;mov ax,es
 	;mov fs,ax ; replace "temp buffer" with normal vga buffer
 
 .loop:
+	mov di,0
+	mov cx,64000/2
+	mov al,8
+	call bgl_flood_fill
+	
 	call get_mouse_position
 	mov byte [bgl_erase],0
 	call gfx_draw
@@ -22,8 +25,6 @@ main:
 	call bgl_write_buffer
 	call bgl_wait_retrace
 	
-	mov byte [bgl_erase],1
-	call gfx_draw
 	call gfx_move
 	
 	call bgl_escape_exit
@@ -59,7 +60,7 @@ gfx_draw:
 	mov word [bgl_y_pos],ax
 	mov byte [bgl_opaque],0
 	mov byte [bgl_flip],0
-	call bgl_draw_gfx
+	call bgl_draw_gfx_fast
 	
 .skip:
 	add bx,2
@@ -72,7 +73,8 @@ gfx_draw:
 	mov ax,[mouse_y_pos]
 	sub ax,6
 	mov word [bgl_y_pos],ax
-	call bgl_draw_gfx
+	mov byte [bgl_opaque],0
+	call bgl_draw_gfx_fast
 	
 	ret
 	
@@ -133,19 +135,19 @@ get_mouse_position:
 	ret
 
 gfx: incbin "bloke_small.gfx"
-amount equ 8
+amount equ 30
 
 x_pos:
 %assign a 0
 %rep amount
-dw a*10
+dw (a*10)
 %assign a a+1
 %endrep
 
 y_pos:
 %assign a 0
 %rep amount
-dw a*10
+dw (a*10)
 %assign a a+1
 %endrep
 
