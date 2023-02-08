@@ -10,7 +10,7 @@ Draws a graphics file to the BGL's graphics buffer. The maximum width and height
 
 To convert an image to a .gfx file compatible with BGL, run **convert.py**, specifying the input file and output file. Only 24-bit PNGs are supported right now. Unless your graphic has lots of unique pixels, it's advisable to use RLE instead.
 
-## bgl_draw_gfx
+## bgl_draw_gfx_fast
 Identical to **bgl_draw_gfx**, but optimized for speed. Because of this, **bgl_flip** isn't supported, and there's no edge clipping, so graphics will still be visible if drawn outside the screen. However, it's at least 2x faster than **bgl_draw_gfx**!
 
 ## bgl_draw_gfx_rle
