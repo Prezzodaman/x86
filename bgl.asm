@@ -1,7 +1,7 @@
 ; BGL (best graphics library)
 ; by: me
 
-; references:
+; referencfs:
 ;	http://www.brackeen.com/vga/index.html
 ; 	https://stackoverflow.com/questions/6560343/double-buffer-video-in-assembler
 
@@ -28,11 +28,180 @@ bgl_collision_h2 dw 0
 bgl_key_states times 128 db 0
 bgl_key_handler_orig dw 0,0
 bgl_palette_segment dw 0
+bgl_y_clip db 0
+bgl_scale dd 1
+bgl_scale_factor_width dd 0
+bgl_scale_factor_height dd 0
+bgl_scale_width dw 0
+bgl_scale_height dw 0
+bgl_scale_precision db 16
 
 bgl_font_offset dw 0
 bgl_font_size db 0
 bgl_font_spacing db 0
 bgl_font_string_offset dw 0
+	
+bgl_draw_gfx_scale:
+	pusha
+
+	xor edx,edx ; when dividing 16/32 bit numbers, dx is used as the "high register"
+
+	mov bx,[bgl_buffer_offset]
+	mov al,[bx]
+	mov byte [bgl_width],al
+	mov al,[bx+1]
+	mov byte [bgl_height],al
+	mov al,[bx+2]
+	mov byte [bgl_transparent],al
+	
+	push bx ; bx is our temporary register here
+	
+	; get scale factor for width and height
+	mov eax,[bgl_scale]
+	xor ebx,ebx
+	mov bl,[bgl_width]
+	add eax,ebx ; scale amount + original width
+	mov cl,[bgl_scale_precision]
+	shl eax,cl
+	xor ebx,ebx
+	mov bl,[bgl_width]
+	div ebx ; new size/original size
+	mov dword [bgl_scale_factor_width],eax
+	
+	mov eax,[bgl_scale]
+	xor ebx,ebx
+	mov bl,[bgl_height]
+	add eax,ebx
+	xor ecx,ecx
+	mov cl,[bgl_scale_precision]
+	shl eax,cl
+	xor ebx,ebx
+	mov bl,[bgl_height]
+	xor edx,edx
+	div ebx
+	mov dword [bgl_scale_factor_height],eax
+	
+	xor ebx,ebx
+	mov ebx,[bgl_scale_factor_width]
+	xor eax,eax
+	mov al,[bgl_width]
+	shl eax,cl
+	xor edx,edx
+	div ebx
+	mov word [bgl_scale_width],ax
+	xor eax,eax
+	mov al,[bgl_height]
+	shl eax,cl
+	xor edx,edx
+	mov ebx,[bgl_scale_factor_height]
+	div ebx
+	mov word [bgl_scale_height],ax
+	
+	pop bx
+
+	mov cx,[bgl_x_pos]
+	mov dx,[bgl_y_pos]
+	call bgl_get_x_y_offset
+	
+	xor cx,cx
+	xor dx,dx
+.loop:
+	push ebx
+	push ecx
+	push edx
+	
+	
+	xor eax,eax
+	mov ax,cx
+	xor edx,edx
+	mov ebx,[bgl_scale_factor_width]
+	mul ebx
+	mov cl,[bgl_scale_precision]
+	shr eax,cl
+	mov cx,ax
+	
+	pop edx
+	push edx
+	xor eax,eax
+	mov ax,dx
+	xor edx,edx
+	mov ebx,[bgl_scale_factor_height]
+	mul ebx
+	push ecx
+	mov cl,[bgl_scale_precision]
+	shr eax,cl
+	mov dx,ax
+	pop ecx
+	
+	call bgl_get_gfx_pixel
+	
+	pop edx
+	pop ecx
+	pop ebx
+	
+	cmp byte [bgl_opaque],0
+	jne .draw
+	cmp al,[bgl_transparent]
+	je .skip
+	cmp byte [bgl_erase],0
+	je .draw
+	mov al,[bgl_background_colour]
+	
+.draw:
+	stosb
+	dec di
+.skip:
+	inc di
+	inc cx
+	cmp cx,[bgl_scale_width]
+	jb .loop_end
+	push ax
+	push bx
+	mov ax,320
+	xor bh,bh
+	mov bl,[bgl_scale_width]
+	sub ax,bx
+	add di,ax
+	pop bx
+	pop ax
+	mov cx,0
+	inc dx
+	cmp dl,[bgl_scale_height]
+	jb .loop_end
+	jmp .end
+.loop_end:
+	jmp .loop
+.end:
+
+	popa
+	ret
+
+bgl_get_gfx_pixel:
+	push bx
+	push cx
+	push dx
+	; input: cl, dl = x, y (of graphic, not the screen)
+	; output: al = pixel
+	; formula: (y*width)+x
+	
+	xor ah,ah
+	mov al,dl ; y*width
+	xor bh,bh
+	mov bl,[bgl_width]
+	mul bx
+	
+	mov bx,[bgl_buffer_offset]
+	add bx,2 ; skip header
+	
+	xor ch,ch
+	add ax,cx ; +x
+	add bx,ax
+	
+	mov al,[bx]
+	pop dx
+	pop cx
+	pop bx
+	ret
 
 bgl_draw_gfx_fast:
 	push ax
@@ -65,9 +234,6 @@ bgl_draw_gfx_fast:
 	xor cx,cx ; now we use cx and dx as x/y counters
 	xor dx,dx
 	
-	push es
-	mov ax,fs ; es is used by stosb, so make it **temporarily** point to fs
-	mov es,ax
 .draw:
 	; per byte instead of words, in case the width/height isn't a multiple of 4 (i could reinforce that, but ueeEEeeaAauAHGHgh)
 	mov al,[si]
@@ -92,14 +258,15 @@ bgl_draw_gfx_fast:
 	mov bl,[bgl_width]
 	sub ax,bx
 	add di,ax ; move down a line starting from current x
-	cmp dl,[bgl_height] ; reached baddum udda grafic?
+	mov al,[bgl_height]
+	sub al,[bgl_y_clip]
+	cmp dl,al ; reached baddum udda grafic?
 	jne .draw_end ; if not, skip
 	jmp .end ; if so, finished drawing graphic
 .draw_end:
 	jmp .draw
 	
 .end:
-	pop es
 	pop dx
 	pop cx
 	pop bx
@@ -158,7 +325,7 @@ bgl_draw_gfx:
 	mov al,[bgl_background_colour] ; otherwise, use background colour
 .erase_skip:
 	call bgl_get_x_y_offset
-	mov byte [fs:di],al
+	mov byte [es:di],al
 	
 .skip:
 	inc si ; next byte
@@ -212,10 +379,10 @@ bgl_draw_full_gfx: ; WARNING: this is STILL untested because a full image uses u
 	add si,2 ; henceforth
 	xor di,di
 .loop:
-	mov ax,[si] ; get source pixel
-	mov word [fs:di],ax ; move to temporary graphics buffer
-	add si,2
-	cmp si,64000/2
+	mov eax,[si] ; get source pixel
+	mov dword [es:di],eax ; move to temporary graphics buffer
+	add si,4
+	cmp si,64000
 	jb .loop
 	
 	pop di
@@ -246,7 +413,7 @@ bgl_draw_full_gfx_rle:
 	je .draw_loop_end ; if not, get next word
 	dec ah
 	mov word [bgl_rle_word],ax
-	mov byte [fs:di],al
+	mov byte [es:di],al
 	inc di
 	
 	cmp di,64000 ; reached bottom of graphic?
@@ -266,21 +433,23 @@ bgl_draw_full_gfx_rle:
 
 bgl_draw_gfx_rle: ; "draw graphics... really?"
 	push ax
+	push bx
 	push cx
 	push dx
 	push si
-	
-	push es
 	
 	cmp word [bgl_x_pos],320 ; check if it's even in range before drawing
 	jge .end
 	cmp word [bgl_y_pos],200
 	jge .end
 	
-	mov ax,fs
-	mov es,ax ; for stosb
-	
 	mov cx,[bgl_x_pos]
+	cmp byte [bgl_flip],0
+	je .flip_skip
+	xor bh,bh
+	mov bl,[bgl_width]
+	add cx,bx
+.flip_skip:
 	mov dx,[bgl_y_pos]
 	call bgl_get_x_y_offset
 	
@@ -365,6 +534,7 @@ bgl_draw_gfx_rle: ; "draw graphics... really?"
 	cmp byte [bgl_flip],0 ; drawing flipped?
 	je .draw_loop_skip2 ; if not, continue as normal
 	sub cx,2 ; decrease x instead (cx + 1 - 2 = cx - 1)
+	sub di,2
 .draw_loop_skip2:
 	cmp byte [bgl_flip],0 ; drawing flipped?
 	je .draw_loop_skip3 ; if not, continue as normal
@@ -378,7 +548,15 @@ bgl_draw_gfx_rle: ; "draw graphics... really?"
 	inc dx ; reached end of line, increase y and reset x
 	xor cx,cx
 	mov ax,320
-	sub al,[bgl_width]
+	xor bh,bh
+	mov bl,[bgl_width]
+	cmp byte [bgl_flip],0 ; drawing flipped?
+	je .draw_loop_flip_skip ; if not, continue as normal
+	add ax,bx
+	jmp .draw_loop_flip_skip2
+.draw_loop_flip_skip:
+	sub ax,bx
+.draw_loop_flip_skip2:
 	add di,ax
 	cmp byte [bgl_flip],0 ; drawing flipped?
 	je .draw_loop_skip5 ; if not, continue as normal
@@ -393,11 +571,11 @@ bgl_draw_gfx_rle: ; "draw graphics... really?"
 	jmp .loop ; very complicated piece of code
 	
 .end:
-	pop es
 
 	pop si
 	pop dx
 	pop cx
+	pop bx
 	pop ax
 	ret
 	
@@ -556,11 +734,11 @@ bgl_init: ; yeah mate, its bgl init bruv
     int 10h
 	
 	mov ax,0a000h
-	mov es,ax ; es Should(tm) always contain the vga memory address
+	mov fs,ax ; fs Should(tm) always contain the vga memory address
 	
 	mov ax, word [2] ; psp: segment of first byte beyond program (word)
 	sub ax,64000/16 ; amount of memory we want, in "segments" (16 bytes)
-	mov fs,ax ; fs is the temporary graphics buffer
+	mov es,ax ; es is the temporary graphics buffer
 	
 	mov al,0 ; clear buffer
 	mov di,0
@@ -573,50 +751,63 @@ bgl_init: ; yeah mate, its bgl init bruv
 	pop ax
 	ret
 	
-bgl_write_buffer:
+bgl_write_buffer_fast:
+	; this is WAY faster, but causes some weird issues with key presses for some reason
 	push ax
 	push si
 	push di
 	push ds
 	push es
-	push fs
 
+	mov ax,es
+	mov ds,ax
+	mov ax,fs
+	mov es,ax
 	xor si,si
 	xor di,di
 	
-	mov ax,fs
-	mov ds,ax
-	mov ax,es
-	mov es,ax
-	
-	mov cx,64000/4
+	mov cx,64000/2
 	rep movsd ; ultimate speed: FOUR BYTES AT A TIME.
 	
-	pop fs
 	pop es
 	pop ds
 	pop di
 	pop si
 	pop ax
+	ret	
+	
+bgl_write_buffer:
+	push ax
+	push si
+
+	mov si,0
+.loop:
+	mov eax,[es:si]
+	mov dword [fs:si],eax
+	add si,4
+	cmp si,64000
+	jne .loop
+	
+	pop si
+	pop ax
 	ret
 	
-bgl_flood_fill: ; di: start, cx: end
+bgl_flood_fill:
 	push ax
-	push di
-	push cx
-	push es
-	
-	push ax
-	mov ax,fs
-	mov es,ax
+.loop:
+	mov byte [es:di],al
+	inc di
+	cmp di,cx
+	jne .loop
 	pop ax
+	ret
+	
+bgl_flood_fill_fast: ; di: start, cx: end
+	push ax
 	
 	mov ah,al
 	rep stosw
 	
-	pop es
-	pop cx
-	pop di
 	pop ax
 	ret
 	
@@ -878,3 +1069,5 @@ bgl_reset:
 	
 bgl_error_message: db "oops something bad has bappened",13,10,"$"
 cr_lf: db 13,10,"$"
+
+%include "wave_table.asm"
