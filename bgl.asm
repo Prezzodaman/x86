@@ -1,7 +1,7 @@
 ; BGL (best graphics library)
 ; by: me
 
-; referencfs:
+; references:
 ;	http://www.brackeen.com/vga/index.html
 ; 	https://stackoverflow.com/questions/6560343/double-buffer-video-in-assembler
 
@@ -31,7 +31,8 @@ bgl_palette_segment dw 0
 bgl_y_clip db 0
 bgl_scale_x dd 1
 bgl_scale_y dd 1
-bgl_scale_factor dd 0
+bgl_scale_factor_width dd 0
+bgl_scale_factor_height dd 0
 bgl_scale_width dw 0
 bgl_scale_height dw 0
 bgl_scale_precision db 16
@@ -42,6 +43,10 @@ bgl_font_spacing db 0
 bgl_font_string_offset dw 0
 	
 bgl_draw_gfx_scale:
+
+	; the simplest and most functional algorithm: (used as a reference)
+	; https://www.researchgate.net/figure/Nearest-neighbour-image-scaling-algorithm_fig2_272092207
+
 	pusha
 
 	xor edx,edx ; when dividing 16/32 bit numbers, dx is used as the "high register"
@@ -56,7 +61,7 @@ bgl_draw_gfx_scale:
 	
 	push bx ; bx is our temporary register here
 	
-	; get scale factor for width and height
+	; get scale factor based off the width
 	mov eax,[bgl_scale_x]
 	xor ebx,ebx
 	mov bl,[bgl_width]
@@ -67,11 +72,24 @@ bgl_draw_gfx_scale:
 	mov bl,[bgl_width]
 	div ebx ; new size/original size
 	sub eax,ebx
-	mov dword [bgl_scale_factor],eax
+	mov dword [bgl_scale_factor_width],eax
+	
+	mov eax,[bgl_scale_y]
+	xor ebx,ebx
+	mov bl,[bgl_width]
+	add eax,ebx ; scale amount + original width
+	mov cl,[bgl_scale_precision]
+	shl eax,cl
+	xor ebx,ebx
+	mov bl,[bgl_width]
+	xor edx,edx
+	div ebx ; new size/original size
+	sub eax,ebx
+	mov dword [bgl_scale_factor_height],eax
 
 	; get width and height
 	xor ebx,ebx
-	mov ebx,[bgl_scale_factor]
+	mov ebx,[bgl_scale_factor_width]
 	xor eax,eax
 	mov al,[bgl_width]
 	shl eax,cl
@@ -82,7 +100,7 @@ bgl_draw_gfx_scale:
 	mov al,[bgl_height]
 	shl eax,cl
 	xor edx,edx
-	mov ebx,[bgl_scale_factor]
+	mov ebx,[bgl_scale_factor_height]
 	div ebx
 	mov word [bgl_scale_height],ax
 	
@@ -103,7 +121,7 @@ bgl_draw_gfx_scale:
 	xor eax,eax
 	mov ax,cx
 	xor edx,edx
-	mov ebx,[bgl_scale_factor]
+	mov ebx,[bgl_scale_factor_width]
 	mul ebx
 	mov cl,[bgl_scale_precision]
 	shr eax,cl
@@ -113,8 +131,7 @@ bgl_draw_gfx_scale:
 	push edx
 	xor eax,eax
 	mov ax,dx
-	xor edx,edx
-	mov ebx,[bgl_scale_factor]
+	mov ebx,[bgl_scale_factor_height]
 	mul ebx
 	push ecx
 	mov cl,[bgl_scale_precision]
