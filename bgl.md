@@ -14,7 +14,7 @@ To convert an image to a .gfx file compatible with BGL, run **convert.py**, spec
 Identical to **bgl_draw_gfx**, but optimized for speed. Because of this, **bgl_flip** isn't supported, and there's no edge clipping, so graphics will still be visible if drawn outside the screen. However, it's at least 2x faster than **bgl_draw_gfx**!
 
 ## bgl_draw_gfx_scale
-Draws a *scaled* graphic to the BGL's buffer!! Uses all the same parameters as **bgl_draw_gfx**, with the addition of the dword **bgl_scale** which determines how big or small it should be drawn. Higher values make it smaller, and negative values make it bigger. It supports **bgl_opaque** and **bgl_erase**, but doesn't support **bgl_flip**. That'll probably never get added. It also uses 32-bit registers, so may not be as compatible. 
+Draws a *scaled* graphic to the BGL's buffer!! Uses all the same parameters as **bgl_draw_gfx**, with the addition of dwords **bgl_scale_x** and **bgl_scale_y** which allow you to scale the width and height independently. Higher values make the graphic smaller, and negative values make it bigger. It supports **bgl_opaque** and **bgl_erase**, but doesn't support **bgl_flip**. That'll probably never get added. It also uses 32-bit registers, so may not be as compatible. 
 
 ## bgl_draw_gfx_rle
 Draws an RLE encoded graphics file to the BGL's graphics buffer. Usage is identical to **bgl_draw_gfx**. To convert an image to RLE, use **convert.py** the same way as before, but use the option **--rle**. It's advisable to use a different file extension to make it easier to identify an RLE encoded file. Using RLE offers a significant reduction in file size, and is also slightly faster to draw.
