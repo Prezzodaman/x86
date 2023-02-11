@@ -25,6 +25,9 @@ Draws a full-screen graphics file to the BGL's graphics buffer. The only require
 ## bgl_draw_full_gfx_rle
 Draws an RLE encoded full-screen graphics file to the BGL's graphics buffer. Usage is identical to **bgl_draw_full_gfx**, only this time, you can actually fit backgrounds in a .com file, making this the preferred option for drawing backgrounds.
 
+## bgl_get_gfx_pixel
+Gets the value of a graphic's pixel at location **cx**, **dx**, and puts the result into **al**. The graphic offset is decided by **bgl_buffer_offset**.
+
 ## bgl_draw_font_string
 Draws a string to the BGL's graphics buffer using a custom graphics font. The graphic for each letter/number must be the exact same size, and have the same width and height. They're stored in the order 0-9, A-Z. See "font.asm" for an example. Punctuation isn't supported right now.
 
