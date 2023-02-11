@@ -29,9 +29,9 @@ bgl_key_states times 128 db 0
 bgl_key_handler_orig dw 0,0
 bgl_palette_segment dw 0
 bgl_y_clip db 0
-bgl_scale dd 1
-bgl_scale_factor_width dd 0
-bgl_scale_factor_height dd 0
+bgl_scale_x dd 1
+bgl_scale_y dd 1
+bgl_scale_factor dd 0
 bgl_scale_width dw 0
 bgl_scale_height dw 0
 bgl_scale_precision db 16
@@ -57,7 +57,7 @@ bgl_draw_gfx_scale:
 	push bx ; bx is our temporary register here
 	
 	; get scale factor for width and height
-	mov eax,[bgl_scale]
+	mov eax,[bgl_scale_x]
 	xor ebx,ebx
 	mov bl,[bgl_width]
 	add eax,ebx ; scale amount + original width
@@ -67,24 +67,11 @@ bgl_draw_gfx_scale:
 	mov bl,[bgl_width]
 	div ebx ; new size/original size
 	sub eax,ebx
-	mov dword [bgl_scale_factor_width],eax
-	
-	mov eax,[bgl_scale]
-	xor ebx,ebx
-	mov bl,[bgl_height]
-	add eax,ebx
-	xor ecx,ecx
-	mov cl,[bgl_scale_precision]
-	shl eax,cl
-	xor ebx,ebx
-	mov bl,[bgl_height]
-	xor edx,edx
-	div ebx
-	mov dword [bgl_scale_factor_height],eax
-	
+	mov dword [bgl_scale_factor],eax
+
 	; get width and height
 	xor ebx,ebx
-	mov ebx,[bgl_scale_factor_width]
+	mov ebx,[bgl_scale_factor]
 	xor eax,eax
 	mov al,[bgl_width]
 	shl eax,cl
@@ -95,7 +82,7 @@ bgl_draw_gfx_scale:
 	mov al,[bgl_height]
 	shl eax,cl
 	xor edx,edx
-	mov ebx,[bgl_scale_factor_height]
+	mov ebx,[bgl_scale_factor]
 	div ebx
 	mov word [bgl_scale_height],ax
 	
@@ -116,7 +103,7 @@ bgl_draw_gfx_scale:
 	xor eax,eax
 	mov ax,cx
 	xor edx,edx
-	mov ebx,[bgl_scale_factor_width]
+	mov ebx,[bgl_scale_factor]
 	mul ebx
 	mov cl,[bgl_scale_precision]
 	shr eax,cl
@@ -127,7 +114,7 @@ bgl_draw_gfx_scale:
 	xor eax,eax
 	mov ax,dx
 	xor edx,edx
-	mov ebx,[bgl_scale_factor_height]
+	mov ebx,[bgl_scale_factor]
 	mul ebx
 	push ecx
 	mov cl,[bgl_scale_precision]
