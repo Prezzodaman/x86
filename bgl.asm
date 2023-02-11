@@ -67,7 +67,7 @@ bgl_draw_gfx_scale:
 	mov bl,[bgl_width]
 	div ebx ; new size/original size
 	mov ebx,[bgl_scale]
-	shl ebx,8
+	shl ebx,9
 	sub eax,ebx
 	mov dword [bgl_scale_factor_width],eax
 	
