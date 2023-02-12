@@ -32,14 +32,14 @@ Draws an RLE encoded full-screen graphics file to the BGL's graphics buffer. Usa
 Gets the value of a graphic's pixel at location **cx**, **dx**, and puts the result into **al**. The graphic offset is decided by **bgl_buffer_offset**.
 
 ## bgl_draw_font_string
-Draws a string to the BGL's graphics buffer using a custom graphics font. The graphic for each letter/number must be the exact same size, and have the same width and height. They're stored in the order 0-9, A-Z. See "font.asm" for an example. Punctuation isn't supported right now.
+Draws a string to the BGL's graphics buffer using a custom graphics font. The graphic for each letter/number must be the exact same size, and have the same width and height. The graphics start from ASCII character 33, so they *must* be in order. See "font.asm" for an example, and check out an ASCII table chart for more details.
 
 - **bgl_font_string_offset** - The offset of the zero terminated string to draw. All letters must be uppercase. (word)
 - **bgl_font_offset** - The offset of the font graphics. (word)
 - **bgl_font_size** - The width/height of each character. (byte)
 -	**bgl_font_spacing** - How many pixels between each character. (byte)
 
-Because this subroutine uses **bgl_draw_gfx**, all the same parameters apply. For example, to set the drawing position of a string, set **bgl_x_pos** and **bgl_y_pos**.
+Because this subroutine uses **bgl_draw_gfx_fast**, all the same parameters apply. For example, to set the drawing position of a string, set **bgl_x_pos** and **bgl_y_pos**.
 
 ## bgl_collision_check
 Performs a simple box check between two sprites. Parameters are passed using the following memory locations:
