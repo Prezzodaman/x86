@@ -2,34 +2,32 @@
 	org 100h
 	
 	call bgl_init
+	;call bgl_restore_orig_key_handler
 	
+loop:
+	mov al,0
+	mov di,0
+	mov cx,64000
+	call bgl_flood_fill
+
 	mov word [bgl_x_pos],0
 	mov word [bgl_y_pos],0
-	mov ax,stringy
-	mov word [bgl_font_string_offset],ax
 	mov ax,font_gfx
 	mov word [bgl_font_offset],ax
 	mov byte [bgl_font_size],24
-	mov byte [bgl_font_spacing],21
+	mov byte [bgl_font_spacing],24
+	
+	mov ax,stringy
+	mov word [bgl_font_string_offset],ax
 	call bgl_draw_font_string
 	
-	add word [bgl_y_pos],28
+	add word [bgl_y_pos],24
 	mov ax,stringy2
 	mov word [bgl_font_string_offset],ax
 	call bgl_draw_font_string
 	
-	add word [bgl_y_pos],28
+	add word [bgl_y_pos],24
 	mov ax,stringy3
-	mov word [bgl_font_string_offset],ax
-	call bgl_draw_font_string
-	
-	add word [bgl_y_pos],28
-	mov ax,stringy4
-	mov word [bgl_font_string_offset],ax
-	call bgl_draw_font_string
-	
-	add word [bgl_y_pos],28
-	mov ax,stringy5
 	mov word [bgl_font_string_offset],ax
 	call bgl_draw_font_string
 	
@@ -37,17 +35,29 @@
 	
 	mov ah,7
 	int 21h
-	
 	call bgl_reset
 	
 %include "bgl.asm"
-stringy: db "HELLO THERE",0
-stringy2: db "0123456789",0
-stringy3: db "YOU CAN USE ANY",0
-stringy4: db "FONT",0
-stringy5: db "THAT YOU WONT",0
+stringy: db "HELLO THERE!?",0
+stringy2: db "PUNCTUATION.",0
+stringy3: db "COLONS:EQUAL=",0
 
 font_gfx:
+	incbin "bgl/font_33.gfx"
+	incbin "bgl/font_34.gfx"
+	incbin "bgl/font_35.gfx"
+	incbin "bgl/font_36.gfx"
+	incbin "bgl/font_37.gfx"
+	incbin "bgl/font_38.gfx"
+	incbin "bgl/font_39.gfx"
+	incbin "bgl/font_40.gfx"
+	incbin "bgl/font_41.gfx"
+	incbin "bgl/font_42.gfx"
+	incbin "bgl/font_43.gfx"
+	incbin "bgl/font_44.gfx"
+	incbin "bgl/font_45.gfx"
+	incbin "bgl/font_46.gfx"
+	incbin "bgl/font_47.gfx"
 	incbin "bgl/font_0.gfx"
 	incbin "bgl/font_1.gfx"
 	incbin "bgl/font_2.gfx"
@@ -58,6 +68,13 @@ font_gfx:
 	incbin "bgl/font_7.gfx"
 	incbin "bgl/font_8.gfx"
 	incbin "bgl/font_9.gfx"
+	incbin "bgl/font_58.gfx"
+	incbin "bgl/font_59.gfx"
+	incbin "bgl/font_60.gfx"
+	incbin "bgl/font_61.gfx"
+	incbin "bgl/font_62.gfx"
+	incbin "bgl/font_63.gfx"
+	incbin "bgl/font_64.gfx"
 	incbin "bgl/font_a.gfx"
 	incbin "bgl/font_b.gfx"
 	incbin "bgl/font_c.gfx"

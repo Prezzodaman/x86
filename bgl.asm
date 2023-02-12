@@ -420,6 +420,7 @@ bgl_draw_gfx_fast:
 	push bx
 	push cx
 	push dx
+	push si
 
 	; this exists as a challenge to see... just how FUAHST. i can do it.
 	; there will be sacrifices, namely the lack of edge clipping
@@ -479,6 +480,7 @@ bgl_draw_gfx_fast:
 	jmp .draw
 	
 .end:
+	pop si
 	pop dx
 	pop cx
 	pop bx
@@ -1222,29 +1224,25 @@ bgl_draw_font_string:
 	mov ax,[bgl_x_pos]
 	push ax
 
-	xor bx,bx
 	xor ax,ax
 	mov si,[bgl_font_string_offset]
 .loop:
-	mov al,[si+bx] ; get character at position bx into al
+	mov al,[si] ; get character at position bx into al
 	cmp al,0
 	je .end
-	cmp al,"A"
-	jge .letter
-	sub al,"0" ; not greater? character is assumed to be a number
+	sub al,33
 	jmp .get_offset
-.letter:
-	sub al,55 ; start from 0, plus the 10 digits (otherwise it'll print a number)
 
 .get_offset:
 	push bx ; offset
-	cmp al,0f0h
+	cmp al," "-33
 	je .skip
 	push ax ; character number
 	xor ax,ax
 	xor bx,bx
 	mov al,[bgl_font_size] ; size in bytes
 	mov bl,al
+	xor dx,dx
 	mul bx ; ax=size*size
 	mov bx,ax
 	add ax,2 ; width/height header
@@ -1256,14 +1254,14 @@ bgl_draw_font_string:
 	mov ax,[bgl_font_offset]
 	add ax,bx
 	mov word [bgl_buffer_offset],ax
-	call bgl_draw_gfx
+	call bgl_draw_gfx_fast
 	
 .skip:
 	xor ax,ax
 	mov al,[bgl_font_spacing]
 	add word [bgl_x_pos],ax
 	pop bx
-	inc bx
+	inc si
 	jmp .loop
 .end:
 
