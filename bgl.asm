@@ -29,6 +29,7 @@ bgl_key_states times 128 db 0
 bgl_key_handler_orig dw 0,0
 bgl_palette_segment dw 0
 bgl_y_clip db 0
+
 bgl_scale_x dd 1
 bgl_scale_y dd 1
 bgl_scale_factor_width dd 0
@@ -36,11 +37,206 @@ bgl_scale_factor_height dd 0
 bgl_scale_width dw 0
 bgl_scale_height dw 0
 bgl_scale_precision db 16
+bgl_scale_centre db 0
+
+bgl_rotate_angle dw 0
+bgl_rotate_angle_sin dw 0
+bgl_rotate_angle_cos dw 0
+bgl_rotate_x dw 0
+bgl_rotate_y dw 0
+bgl_rotate_x_centre dw 0
+bgl_rotate_y_centre dw 0
+bgl_rotate_x_adjusted dw 0
+bgl_rotate_y_adjusted dw 0
 
 bgl_font_offset dw 0
 bgl_font_size db 0
 bgl_font_spacing db 0
 bgl_font_string_offset dw 0
+	
+bgl_draw_gfx_rotate:
+	; reference:
+	; https://www.codingame.com/playgrounds/2524/basic-image-manipulation/transformation
+	; test written in python, "converted over" to assembly by hand
+
+	pusha
+
+	; find sin of angle..
+	mov ax,[bgl_rotate_angle]
+	mov bx,360
+	xor dx,dx
+	div bx
+	mov bx,dx
+	shl bx,1 ; word length
+	mov ax,[wave_table_deg+bx]
+	mov word [bgl_rotate_angle_sin],ax
+	; find cos of angle..
+	add bx,90*2
+	mov ax,bx
+	mov bx,360*2
+	xor dx,dx
+	div bx
+	mov bx,dx
+	mov ax,[wave_table_deg+bx]
+	mov word [bgl_rotate_angle_cos],ax
+
+	mov bx,[bgl_buffer_offset]
+	mov al,[bx]
+	mov byte [bgl_width],al
+	mov al,[bx+1]
+	mov byte [bgl_height],al
+	mov al,[bx+2]
+	mov byte [bgl_transparent],al
+	
+	; get x and y centre points
+	xor ah,ah
+	mov al,[bgl_width]
+	shr ax,1
+	mov word [bgl_rotate_x_centre],ax
+	mov al,[bgl_height]
+	shr ax,1
+	mov word [bgl_rotate_y_centre],ax
+	
+	mov cx,[bgl_x_pos]
+	mov dx,[bgl_y_pos]
+	call bgl_get_x_y_offset
+	
+	xor cx,cx
+	xor dx,dx
+.loop:
+	push bx
+	
+	; x
+	
+	push cx
+	push dx
+	
+	mov bx,cx
+	sub bx,[bgl_rotate_x_centre]
+	mov ax,[bgl_rotate_angle_cos] ; cos(angle)
+	xor dx,dx
+	mul bx ; x*cos(angle)
+	mov cx,ax ; cx = x*cos(angle)
+	
+	pop bx ; original y counter into bx
+	push bx ;;
+	sub bx,[bgl_rotate_y_centre]
+	mov ax,[bgl_rotate_angle_sin] ; sin(angle)
+	xor dx,dx
+	mul bx ; y*sin(angle)
+	mov dx,ax ; dx = y*sin(angle)
+	sub cx,dx
+	
+	push bx
+	mov ax,[bgl_rotate_x_centre]
+	mov bx,360
+	mul bx
+	add cx,ax
+	pop bx
+	
+	mov word [bgl_rotate_x_adjusted],cx
+	
+	pop dx
+	pop cx
+	
+	; y
+	
+	push cx
+	push dx
+	
+	mov bx,cx
+	sub bx,[bgl_rotate_x_centre]
+	mov ax,[bgl_rotate_angle_sin] ; sin(angle)
+	xor dx,dx
+	mul bx ; x*sin(angle)
+	mov cx,ax ; cx = x*sin(angle)
+	
+	pop bx ;; original y counter into bx
+	push bx
+	sub bx,[bgl_rotate_y_centre]
+	mov ax,[bgl_rotate_angle_cos] ; cos(angle)
+	xor dx,dx
+	mul bx ; y*cos(angle)
+	mov dx,ax ; dx = y*cos(angle)
+	add cx,dx
+	
+	push bx
+	mov ax,[bgl_rotate_y_centre]
+	mov bx,360
+	mul bx
+	add cx,ax
+	pop bx
+	
+	mov word [bgl_rotate_y_adjusted],cx
+	
+	mov ax,[bgl_rotate_x_adjusted]
+	mov bx,360-1 ; maximum sine value, minus 1
+	xor dx,dx
+	div bx
+	mov cx,ax
+	
+	mov ax,[bgl_rotate_y_adjusted]
+	xor dx,dx
+	div bx
+	mov dx,ax
+	
+	call bgl_get_gfx_pixel
+	
+	xor bh,bh
+	mov bl,[bgl_width]
+	cmp cx,bx
+	jl .width_skip
+	mov al,[bgl_transparent]
+.width_skip:
+	mov bl,[bgl_height]
+	cmp dx,bx
+	jl .height_skip
+	mov al,[bgl_transparent]
+.height_skip:
+	
+	pop dx
+	pop cx
+	
+	;;;
+	
+	pop bx
+	
+	cmp byte [bgl_opaque],0
+	jne .draw
+	cmp al,[bgl_transparent]
+	je .skip
+	cmp byte [bgl_erase],0
+	je .draw
+	mov al,[bgl_background_colour]
+	
+.draw:
+	stosb
+	dec di
+.skip:
+	inc di
+	inc cx
+	cmp cl,[bgl_width]
+	jb .loop_end
+	push ax
+	push bx
+	mov ax,320
+	xor bh,bh
+	mov bl,[bgl_width]
+	sub ax,bx
+	add di,ax
+	pop bx
+	pop ax
+	mov cx,0
+	inc dx
+	cmp dl,[bgl_height]
+	jb .loop_end
+	jmp .end
+.loop_end:
+	jmp .loop
+.end:
+
+	popa
+	ret
 	
 bgl_draw_gfx_scale:
 
@@ -108,6 +304,16 @@ bgl_draw_gfx_scale:
 
 	mov cx,[bgl_x_pos]
 	mov dx,[bgl_y_pos]
+	cmp byte [bgl_scale_centre],0
+	je .x_y_skip
+	mov eax,[bgl_scale_x]
+	shr eax,2
+	add cx,ax
+	mov eax,[bgl_scale_y]
+	shr eax,2
+	add dx,ax
+	
+.x_y_skip:
 	call bgl_get_x_y_offset
 	
 	xor cx,cx
