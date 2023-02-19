@@ -80,7 +80,7 @@ Checks if the escape key is pressed, and if so, exits the program. Only function
 ## bgl_wait_retrace
 Wait for the graphical retrace period to finish.
 ## bgl_init
-Gets the BGL's graphical capabilities ready for use by setting the graphics mode, "allocating" memory for the graphics buffer, pointing **es** to the VGA buffer, pointing **fs** to the BGL's graphics buffer, replacing the key handler, and clearing the contents of the BGL's buffer. If you want to draw directly to the VGA buffer, point **fs** to **es**.
+Gets the BGL's graphical capabilities ready for use by setting the graphics mode, "allocating" memory for the graphics buffer, pointing **fs** to the VGA buffer, pointing **es** to the BGL's graphics buffer, replacing the key handler, and clearing the contents of the BGL's buffer. If you want to draw directly to the VGA buffer, point **es** to **fs**.
 ## bgl_write_buffer
 Writes the content of the BGL's graphics buffer to the screen.
 ## bgl_write_buffer_fast
