@@ -39,7 +39,10 @@ Draws a string to the BGL's graphics buffer using a custom graphics font. The gr
 - **bgl_font_size** - The width/height of each character. (byte)
 -	**bgl_font_spacing** - How many pixels between each character. (byte)
 
-Because this subroutine uses **bgl_draw_gfx_fast**, all the same parameters apply. For example, to set the drawing position of a string, set **bgl_x_pos** and **bgl_y_pos**.
+Because this subroutine uses **bgl_draw_gfx**, all the same parameters apply. For example, to set the drawing position of a string, set **bgl_x_pos** and **bgl_y_pos**.
+
+## bgl_pseudo_fade
+Slowly reveals the contents of the BGL's graphics buffer in vertical strips, going from left to right, back to the left again. Use this before **bgl_write_buffer** so the screen doesn't contain the same as the buffer!
 
 ## bgl_collision_check
 Performs a simple box check between two sprites. Parameters are passed using the following memory locations:
