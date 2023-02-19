@@ -12,6 +12,8 @@ beep_change:
 	push ax
 	push dx
 
+	cmp dx,2
+	je .beep_off
 	mov ax,dx
 	out 42h,al ; low byte...
 	mov al,ah
@@ -20,6 +22,10 @@ beep_change:
 
 	mov al,00000011b ; connect speaker to timer 2
 	out 61h,al
+	jmp .end
+.beep_off:
+	call beep_off
+.end:
 	pop dx
 	pop ax
 	ret
@@ -50,7 +56,7 @@ beep_handler:
 	shl bx,1 ; each beep is a word, so multiply by 2
 	mov dx,[si+bx] ; beep the appropriate beep
 	cmp dx,0 ; check that the beep value is non zero before beeping
-	je .stop ; if it's zero, stop beeping
+	je .stop ; if it's zero, stop playing the sound effect
 	cmp dx,1 ; otherwise, check that the value is 1 (loop)
 	je .rewind ; if so, rewind
 	jmp .skip
@@ -138,9 +144,9 @@ beep_play_sample:
 	
 beep_play_pcm_sample: ; si = source index, cx = speeeeeeeed, dx = length
 
-	; reference:
+	; references:
 	; 	https://www.youtube.com/watch?v=4SBUrv7fXqI
-	; i understand all of it, apart from outing 90h to 43h - what does that do?
+	;	https://wiki.osdev.org/Programmable_Interval_Timer
 
 	push ax
 	push bx
@@ -160,7 +166,7 @@ beep_play_pcm_sample: ; si = source index, cx = speeeeeeeed, dx = length
 .loop:
 	push es ; wait...
 	push bx
-	mov bx,0
+	xor bx,bx
 	mov es,bx
 	mov bx,[es:46ch]
 .wait:
@@ -171,11 +177,11 @@ beep_play_pcm_sample: ; si = source index, cx = speeeeeeeed, dx = length
 	
 	; play the byte
 	
-	mov al,90h ; "set up the speaker"
-	out 43h,al
+	mov al,10010000b ; 001 = hardware re-triggerable one-shot
+	out 43h,al ; mode/command register
 	mov al,[si+bx] ; frequency (current sample byte)
 	shr al,1
-	add al,8 ; reduce distortion
+	inc al ; reduce distortion
 	out 42h,al
 	
 	inc bx ; go to next byte
@@ -196,12 +202,78 @@ beep_play_pcm_sample: ; si = source index, cx = speeeeeeeed, dx = length
 	pop ax
 	ret
 	
+beep_play_pcm_sample2: ; using 32 bit registers, no audible carrier signal - compatibility issues on older computers
+
+	push ax
+	push bx
+	push cx
+	push dx
+	
+	add cx,16
+	shr cx,1
+	shl edx,1
+	
+	sub cl,16
+	mov al,16h ; speed up timer
+	out 43h,al
+	mov al,cl
+	out 40h,al
+	
+	call beep_on
+	
+	mov ebx,0 ; data pointer
+	
+.loop:
+	push es ; wait...
+	push ebx
+	xor bx,bx
+	mov es,bx
+	mov bx,[es:46ch]
+.wait:
+	cmp bx,[es:46ch]
+	je .wait
+	pop ebx
+	pop es
+	
+	; play the byte
+	
+	push ebx
+	shr ebx,1
+	mov al,10010000b ; 001 = hardware re-triggerable one-shot
+	out 43h,al ; mode/command register
+	mov al,[si+bx] ; frequency (current sample byte)
+	shr al,2
+	inc al ; reduce distortion
+	out 42h,al
+	pop ebx
+	
+	inc ebx ; go to next byte
+	
+	cmp ebx,edx ; reached end of file?
+	jne .loop ; if not, keep going
+	
+	mov al,16h ; slow timer down
+	out 43h,al
+	mov al,0
+	out 40h,al
+	
+	call beep_off
+	
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+	ret
+	
 beep_sfx_state db 0
 beep_sfx_offset dw 0
 beep_sfx_playing db 0
 
 beep_22050 equ 62
-beep_11025 equ 62*2
+beep_22050_pwm equ beep_22050+30
+beep_11025 equ beep_22050*2
+beep_16000 equ 83
+beep_8000 equ beep_16000*2
 
 beep_c1 equ 478bh
 beep_c_sharp_1 equ 4494h

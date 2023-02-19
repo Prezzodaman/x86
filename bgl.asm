@@ -42,8 +42,6 @@ bgl_scale_centre db 0
 bgl_rotate_angle dw 0
 bgl_rotate_angle_sin dw 0
 bgl_rotate_angle_cos dw 0
-bgl_rotate_x dw 0
-bgl_rotate_y dw 0
 bgl_rotate_x_centre dw 0
 bgl_rotate_y_centre dw 0
 bgl_rotate_x_adjusted dw 0
@@ -53,6 +51,66 @@ bgl_font_offset dw 0
 bgl_font_size db 0
 bgl_font_spacing db 0
 bgl_font_string_offset dw 0
+	
+bgl_pseudo_fade:
+	push di
+	push cx
+	push dx
+	push ax
+	xor di,di
+	xor cx,cx
+	xor dx,dx
+.first_loop:
+	mov al,[es:di]
+	mov byte [fs:di],al
+	add di,320
+	inc dx
+	cmp dx,200
+	ja .first_loop_skip
+	jmp .first_loop
+.first_loop_skip:
+	push cx
+	and cx,2
+	cmp cx,0
+	pop cx
+	je .first_loop_skip2
+	call bgl_wait_retrace
+.first_loop_skip2:
+	add cx,2
+	mov di,cx
+	xor dx,dx
+	cmp cx,320
+	jbe .first_loop
+
+	mov cx,319
+	mov di,319
+.second_loop:
+	mov al,[es:di]
+	mov byte [fs:di],al
+	add di,320
+	inc dx
+	cmp dx,200
+	je .second_loop_skip
+	jmp .second_loop
+.second_loop_skip:
+	push cx
+	and cx,2
+	cmp cx,0
+	pop cx
+	je .second_loop_skip2
+	call bgl_wait_retrace
+.second_loop_skip2:
+	sub cx,2
+	mov di,cx
+	xor dx,dx
+	cmp cx,0
+	jg .second_loop
+.end:
+	pop ax
+	pop dx
+	pop cx
+	pop di
+	ret
 	
 bgl_draw_gfx_rotate:
 	; reference:
@@ -65,20 +123,25 @@ bgl_draw_gfx_rotate:
 	mov ax,[bgl_rotate_angle]
 	mov bx,360
 	xor dx,dx
-	div bx
+	div bx ; dx = angle % 360
 	mov bx,dx
+	
 	shl bx,1 ; word length
 	mov ax,[wave_table_deg+bx]
 	mov word [bgl_rotate_angle_sin],ax
+	
 	; find cos of angle..
 	add bx,90*2
 	mov ax,bx
 	mov bx,360*2
 	xor dx,dx
-	div bx
+	div bx ; dx = (angle+90) % 360
 	mov bx,dx
+	
 	mov ax,[wave_table_deg+bx]
 	mov word [bgl_rotate_angle_cos],ax
+
+	;;;
 
 	mov bx,[bgl_buffer_offset]
 	mov al,[bx]
@@ -89,11 +152,11 @@ bgl_draw_gfx_rotate:
 	mov byte [bgl_transparent],al
 	
 	; get x and y centre points
-	xor ah,ah
-	mov al,[bgl_width]
+	
+	movzx ax,[bgl_width]
 	shr ax,1
 	mov word [bgl_rotate_x_centre],ax
-	mov al,[bgl_height]
+	movzx ax,[bgl_height]
 	shr ax,1
 	mov word [bgl_rotate_y_centre],ax
 	
@@ -182,13 +245,12 @@ bgl_draw_gfx_rotate:
 	
 	call bgl_get_gfx_pixel
 	
-	xor bh,bh
-	mov bl,[bgl_width]
+	movzx bx,[bgl_width]
 	cmp cx,bx
 	jl .width_skip
 	mov al,[bgl_transparent]
 .width_skip:
-	mov bl,[bgl_height]
+	movzx bx,[bgl_height]
 	cmp dx,bx
 	jl .height_skip
 	mov al,[bgl_transparent]
@@ -220,8 +282,7 @@ bgl_draw_gfx_rotate:
 	push ax
 	push bx
 	mov ax,320
-	xor bh,bh
-	mov bl,[bgl_width]
+	movzx bx,[bgl_width]
 	sub ax,bx
 	add di,ax
 	pop bx
@@ -255,29 +316,25 @@ bgl_draw_gfx_scale:
 	mov al,[bx+2]
 	mov byte [bgl_transparent],al
 	
-	push bx ; bx is our temporary register here
+	push ebx ; ebx is our temporary register here
 	
 	; get scale factor based off the width
 	mov eax,[bgl_scale_x]
-	xor ebx,ebx
-	mov bl,[bgl_width]
+	movzx ebx,byte [bgl_width]
 	add eax,ebx ; scale amount + original width
 	mov cl,[bgl_scale_precision]
 	shl eax,cl
-	xor ebx,ebx
-	mov bl,[bgl_width]
+	movzx ebx,byte [bgl_width]
 	div ebx ; new size/original size
 	sub eax,ebx
 	mov dword [bgl_scale_factor_width],eax
 	
 	mov eax,[bgl_scale_y]
-	xor ebx,ebx
-	mov bl,[bgl_width]
+	movzx ebx,byte [bgl_width]
 	add eax,ebx ; scale amount + original width
 	mov cl,[bgl_scale_precision]
 	shl eax,cl
-	xor ebx,ebx
-	mov bl,[bgl_width]
+	movzx ebx,byte [bgl_width]
 	xor edx,edx
 	div ebx ; new size/original size
 	sub eax,ebx
@@ -286,21 +343,19 @@ bgl_draw_gfx_scale:
 	; get width and height
 	xor ebx,ebx
 	mov ebx,[bgl_scale_factor_width]
-	xor eax,eax
-	mov al,[bgl_width]
+	movzx eax,byte [bgl_width]
 	shl eax,cl
 	xor edx,edx
 	div ebx
 	mov word [bgl_scale_width],ax
-	xor eax,eax
-	mov al,[bgl_height]
+	movzx eax,byte [bgl_height]
 	shl eax,cl
 	xor edx,edx
 	mov ebx,[bgl_scale_factor_height]
 	div ebx
 	mov word [bgl_scale_height],ax
 	
-	pop bx
+	pop ebx
 
 	mov cx,[bgl_x_pos]
 	mov dx,[bgl_y_pos]
@@ -324,8 +379,7 @@ bgl_draw_gfx_scale:
 	push edx
 	
 	
-	xor eax,eax
-	mov ax,cx
+	movzx eax,cx
 	xor edx,edx
 	mov ebx,[bgl_scale_factor_width]
 	mul ebx
@@ -335,8 +389,7 @@ bgl_draw_gfx_scale:
 	
 	pop edx
 	push edx
-	xor eax,eax
-	mov ax,dx
+	movzx eax,dx
 	mov ebx,[bgl_scale_factor_height]
 	mul ebx
 	push ecx
@@ -370,8 +423,7 @@ bgl_draw_gfx_scale:
 	push ax
 	push bx
 	mov ax,320
-	xor bh,bh
-	mov bl,[bgl_scale_width]
+	movzx bx,[bgl_scale_width]
 	sub ax,bx
 	add di,ax
 	pop bx
@@ -398,8 +450,7 @@ bgl_get_gfx_pixel:
 	
 	xor ah,ah
 	mov al,dl ; y*width
-	xor bh,bh
-	mov bl,[bgl_width]
+	movzx bx,[bgl_width]
 	mul bx
 	
 	mov bx,[bgl_buffer_offset]
@@ -467,8 +518,7 @@ bgl_draw_gfx_fast:
 	xor cx,cx ; reset x counter
 	inc dx
 	mov ax,320
-	xor bh,bh ; bx only used as a temporary register here
-	mov bl,[bgl_width]
+	movzx bx,[bgl_width] ; bx only used as a temporary register here
 	sub ax,bx
 	add di,ax ; move down a line starting from current x
 	mov al,[bgl_height]
@@ -965,6 +1015,7 @@ bgl_init: ; yeah mate, its bgl init bruv
 	pop ax
 	ret
 	
+	
 bgl_write_buffer_fast:
 	; this is WAY faster, but causes some weird issues with key presses for some reason
 	push ax
@@ -1254,7 +1305,7 @@ bgl_draw_font_string:
 	mov ax,[bgl_font_offset]
 	add ax,bx
 	mov word [bgl_buffer_offset],ax
-	call bgl_draw_gfx_fast
+	call bgl_draw_gfx
 	
 .skip:
 	xor ax,ax
@@ -1280,4 +1331,16 @@ bgl_reset:
 bgl_error_message: db "oops something bad has bappened",13,10,"$"
 cr_lf: db 13,10,"$"
 
-%include "wave_table.asm"
+wave_table:
+	dw 0,12,25,37,49,60,71,81,91,99,106,113,118,122,125,126,126,125,123,120,115,109,102,94,85,76,65,54,42,30,17,5,-7,-20,-32,-44,-56,-67,-77,-87,-96,-103,-110,-116,-120,-124,-126,-126,-126,-124,-121,-117,-112,-105,-98,-89,-80,-69,-59,-47,-35,-23,-10 ; length: 63
+
+wave_table_deg:
+	dw 0,6,12,18,25,31,37,43,50,56,62,68,74,80,87,93,99,105,111,117,123,129,134,140,146,152,157,163,169,174,179,185,190,196,201,206,211,216,221,226,231,236,240,245,250
+	dw 254,258,263,267,271,275,279,283,287,291,294,298,301,305,308,311,314,317,320,323,326,328,331,333,336,338,340,342,344,346,347,349,350,352,353,354,355,356,357,358,358,359,359,359,359
+	dw 359,359,359,359,359,358,358,357,356,355,354,353,352,350,349,347,346,344,342,340,338,336,333,331,328,326,323,320,317,314,311,308,305,301,298,294,291,287,283,279,275,271,267,263,258
+	dw 254,250,245,240,236,231,226,221,216,211,206,201,196,190,185,180,174,169,163,157,152,146,140,134,129,123,117,111,105,99,93,87,80,74,68,62,56,50,43,37,31,25,18,12,6
+	dw 0,-7,-13,-19,-26,-32,-38,-44,-51,-57,-63,-69,-75,-81,-88,-94,-100,-106,-112,-118,-124,-130,-135,-141,-147,-153,-158,-164,-170,-175,-180,-186,-191,-197,-202,-207,-212,-217,-222,-227,-232,-237,-241,-246,-251
+	dw -255,-259,-264,-268,-272,-276,-280,-284,-288,-292,-295,-299,-302,-306,-309,-312,-315,-318,-321,-324,-327,-329,-332,-334,-337,-339,-341,-343,-345,-347,-348,-350,-351,-353,-354,-355,-356,-357,-358,-359,-359,-360,-360,-360,-360
+	dw -360,-360,-360,-360,-360,-359,-359,-358,-357,-356,-355,-354,-353,-351,-350,-348,-347,-345,-343,-341,-339,-337,-334,-332,-329,-327,-324,-321,-318,-315,-312,-309,-306,-302,-299,-295,-292,-288,-284,-280,-276,-272,-268,-264,-259
+	dw -255,-251,-246,-241,-237,-232,-227,-222,-217,-212,-207,-202,-197,-191,-186,-181,-175,-170,-164,-158,-153,-147,-141,-135,-130,-124,-118,-112,-106,-100,-94,-88,-81,-75,-69,-63,-57,-51,-44,-38,-32,-26,-19,-13,-7
+	dw  -1
