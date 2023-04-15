@@ -5,6 +5,8 @@
 ;	http://www.brackeen.com/vga/index.html
 ; 	https://stackoverflow.com/questions/6560343/double-buffer-video-in-assembler
 
+%define bgl_get_font_offset(a) font_gfx+(((8*8)+2)*(a-33))
+
 bgl_rle_word dw 0
 bgl_flip db 0
 bgl_erase db 0
@@ -29,6 +31,8 @@ bgl_key_states times 128 db 0
 bgl_key_handler_orig dw 0,0
 bgl_palette_segment dw 0
 bgl_y_clip db 0
+bgl_no_bounds db 0
+bgl_tint db 0
 
 bgl_scale_x dd 1
 bgl_scale_y dd 1
@@ -51,6 +55,18 @@ bgl_font_offset dw 0
 bgl_font_size db 0
 bgl_font_spacing db 0
 bgl_font_string_offset dw 0
+	
+bgl_get_font_number_offset: ; input in ax (number 0-9), font label in bx, result will be in ax
+	push dx
+	push bx
+	add ax,15
+	mov bx,(8*8)+2
+	xor dx,dx
+	mul bx
+	pop bx
+	add ax,bx
+	pop dx
+	ret
 	
 bgl_pseudo_fade:
 	push di
@@ -272,6 +288,7 @@ bgl_draw_gfx_rotate:
 	mov al,[bgl_background_colour]
 	
 .draw:
+	add al,[bgl_tint]
 	stosb
 	dec di
 .skip:
@@ -287,7 +304,7 @@ bgl_draw_gfx_rotate:
 	add di,ax
 	pop bx
 	pop ax
-	mov cx,0
+	xor cx,cx
 	inc dx
 	cmp dl,[bgl_height]
 	jb .loop_end
@@ -413,6 +430,7 @@ bgl_draw_gfx_scale:
 	mov al,[bgl_background_colour]
 	
 .draw:
+	add al,[bgl_tint]
 	stosb
 	dec di
 .skip:
@@ -428,7 +446,7 @@ bgl_draw_gfx_scale:
 	add di,ax
 	pop bx
 	pop ax
-	mov cx,0
+	xor cx,cx
 	inc dx
 	cmp dl,[bgl_scale_height]
 	jb .loop_end
@@ -438,6 +456,18 @@ bgl_draw_gfx_scale:
 .end:
 
 	popa
+	ret
+
+bgl_get_buffer_pixel:
+	push bx
+	push cx
+	; input: cx, dx = x, y (of screen)
+	; output: al = pixel
+	; gets the value of a pixel from the bgl's buffer
+	call bgl_get_x_y_offset ; returns offset in di
+	mov al,[es:di] ; aHits ThaHat Easy! (tm)
+	pop cx
+	pop bx
 	ret
 
 bgl_get_gfx_pixel:
@@ -451,6 +481,7 @@ bgl_get_gfx_pixel:
 	xor ah,ah
 	mov al,dl ; y*width
 	movzx bx,[bgl_width]
+	xor dx,dx
 	mul bx
 	
 	mov bx,[bgl_buffer_offset]
@@ -508,6 +539,7 @@ bgl_draw_gfx_fast:
 	je .erase_skip
 	mov al,[bgl_background_colour]
 .erase_skip:
+	add al,[bgl_tint]
 	stosb ; write the contents of al to es:di, increment di (faster than mov)
 	dec di ; remove effect of auto increment because of the skip
 .draw_skip:
@@ -575,6 +607,8 @@ bgl_draw_gfx:
     mov al,[si] ; pixel colour
 	cmp al,[bgl_transparent]
 	je .skip ; if the pixel is "transparent", skip drawing
+	cmp byte [bgl_no_bounds],0 ; are we performing the bound check?
+	je .bounds_skip ; if not, skip it
 	cmp cx,320
 	jge .skip ; if the pixel has exceeded the horizontal boundaries, skip
 	cmp cx,0
@@ -584,11 +618,13 @@ bgl_draw_gfx:
 	cmp dx,0
 	jl .skip ; -'-
 	
+.bounds_skip:
 	cmp byte [bgl_erase],0 ; otherwise, check if we're erasing so we use the right colour
 	je .erase_skip ; if not, use the proper colour as set earlier
 	mov al,[bgl_background_colour] ; otherwise, use background colour
 .erase_skip:
 	call bgl_get_x_y_offset
+	add al,[bgl_tint]
 	mov byte [es:di],al
 	
 .skip:
@@ -661,10 +697,10 @@ bgl_draw_full_gfx_rle:
 	push si
 	push di
 	
-	mov di,0
+	xor di,di
 	mov si,[bgl_buffer_offset]
 	add si,2
-	mov cx,0
+	xor cx,cx
 	mov dx,0
 .loop:
 	mov ax,[si] ; get the word
@@ -677,8 +713,7 @@ bgl_draw_full_gfx_rle:
 	je .draw_loop_end ; if not, get next word
 	dec ah
 	mov word [bgl_rle_word],ax
-	mov byte [es:di],al
-	inc di
+	stosb
 	
 	cmp di,64000 ; reached bottom of graphic?
 	jne .draw_loop ; if not, continue drawing
@@ -756,6 +791,9 @@ bgl_draw_gfx_rle: ; "draw graphics... really?"
 	cmp al,[bgl_transparent] ; if the pixel about to be drawn is transparent, don't even draw it, just skip
 	je .draw_loop_skip
 	
+	cmp byte [bgl_no_bounds],0 ; are we performing the bound check?
+	jne .bounds_skip ; if not, skip it
+	
 	push ax
 	mov ax,cx
 	add ax,[bgl_x_pos]
@@ -784,12 +822,16 @@ bgl_draw_gfx_rle: ; "draw graphics... really?"
 	pop ax
 	jge .draw_loop_skip
 	
+.bounds_skip:
 	cmp byte [bgl_erase],0 ; erasing?
 	je .draw_loop_main ; if not, continue as normal
 	mov al,[bgl_background_colour] ; otherwise, replace pixel colour with the background colour
 	
 .draw_loop_main:
+	push ax
+	add al,[bgl_tint]
 	stosb ; this is actually faster than moving the byte manually!
+	pop ax
 	dec di
 .draw_loop_skip:
 	mov word [bgl_rle_word],ax
@@ -1005,7 +1047,7 @@ bgl_init: ; yeah mate, its bgl init bruv
 	mov es,ax ; es is the temporary graphics buffer
 	
 	mov al,0 ; clear buffer
-	mov di,0
+	xor di,di
 	mov cx,64000
 	call bgl_flood_fill
 	
@@ -1048,13 +1090,27 @@ bgl_write_buffer:
 	mov si,0
 .loop:
 	mov eax,[es:si]
-	mov dword [fs:si],eax
+	mov dword [fs:si],eax ; todo - change this EEEEEAAAAAXXXX plz
 	add si,4
 	cmp si,64000
 	jne .loop
 	
 	pop si
 	pop ax
+	ret
+	
+bgl_flood_fill_full:
+	push di
+	push cx
+	mov ah,al
+	xor di,di
+	push ax
+	shl eax,16
+	pop ax
+	mov cx,64000/4
+	rep stosd
+	pop cx
+	pop di
 	ret
 	
 bgl_flood_fill:
@@ -1085,8 +1141,8 @@ bgl_get_orig_palette:
 	;mov bx,255/16 ; how many paragraphs to allocate
 	;int 21h ; ax will contain the address
 	
-	mov cx,0 ; colour index
-	mov di,0 ; destination index
+	xor cx,cx ; colour index
+	xor di,di ; destination index
 .loop:
 	
 	mov dx,3c9h
@@ -1122,7 +1178,7 @@ bgl_fade_in:
 	push bx
 	push dx
 	
-	mov cx,0 ; colour index
+	xor cx,cx ; colour index
 	mov si,0 ; source index
 	mov bx,1 ; fade intensity
 .palette_loop:
@@ -1169,7 +1225,7 @@ bgl_fade_in:
 	;dec bx
 	;cmp bx,2
 	;je .end
-	;mov cx,0
+	;xor cx,cx
 	;jmp .palette_loop
 	
 .end:
