@@ -37,9 +37,14 @@ beep_off:
 	pop ax
 	ret
 	
+beep_sfx_state dw 0
+beep_sfx_offset dw 0
+beep_sfx_playing db 0
+beep_sfx_add dw 0
+	
 beep_play_sfx:
 	mov word [beep_sfx_offset],si
-	mov byte [beep_sfx_state],0
+	mov word [beep_sfx_state],0
 	mov byte [beep_sfx_playing],1
 	call beep_on
 	ret
@@ -51,23 +56,27 @@ beep_handler:
 	mov si,[beep_sfx_offset]
 	cmp byte [beep_sfx_playing],0 ; playing a sound?
 	je .end ; if not, do nothing
-	xor bx,bx
-	mov	bl,[beep_sfx_state]
+	mov	bx,[beep_sfx_state]
 	shl bx,1 ; each beep is a word, so multiply by 2
 	mov dx,[si+bx] ; beep the appropriate beep
 	cmp dx,0 ; check that the beep value is non zero before beeping
 	je .stop ; if it's zero, stop playing the sound effect
 	cmp dx,1 ; otherwise, check that the value is 1 (loop)
 	je .rewind ; if so, rewind
-	jmp .skip
+	cmp dx,3 ; is the value a note cut?
+	jne .skip ; if not, proceed as usual
+	call beep_off ; cut note, skip past beep_change as that turns on the beeper
+	jmp .skip_2
 .rewind:
-	mov byte [beep_sfx_state],0
+	mov word [beep_sfx_state],0
 	mov si,[beep_sfx_offset]
 	mov bx,0
 	mov dx,[si+bx]
 .skip:
+	add dx,[beep_sfx_add]
 	call beep_change ; if it's non zero, beep!
-	inc byte [beep_sfx_state] ; once beeped, go to next beep
+.skip_2:
+	inc word [beep_sfx_state] ; once beeped, go to next beep
 	jmp .end
 .stop:
 	call beep_off
@@ -265,9 +274,94 @@ beep_play_pcm_sample2: ; using 32 bit registers, no audible carrier signal - com
 	pop ax
 	ret
 	
-beep_sfx_state db 0
-beep_sfx_offset dw 0
-beep_sfx_playing db 0
+beep_pcm_offset dw 0
+beep_pcm_length dw 0
+beep_pcm_position dw 0
+beep_pcm_speed db 0
+beep_pcm_loops dw 0
+	
+beep_pcm_on:
+	push cx
+	push ax
+	mov cl,[beep_pcm_speed]
+	sub cl,24
+	mov al,16h ; speed up timer
+	out 43h,al
+	mov al,cl
+	out 40h,al
+	pop ax
+	pop cx
+	ret
+	
+beep_pcm_off:
+	push ax
+	mov al,16h ; slow timer down
+	out 43h,al
+	mov al,0
+	out 40h,al
+	pop ax
+	ret
+	
+beep_pcm_handler:
+	push cx
+	mov cx,[beep_pcm_loops]
+.loop:
+	call beep_pcm_handler_sub
+	loop .loop
+	pop cx
+	ret
+	
+beep_pcm_handler_sub:
+	push ax
+	push bx
+	push dx
+	
+	call beep_pcm_on
+	
+	mov si,[beep_pcm_offset]
+	mov bx,[beep_pcm_position]
+	mov dx,[beep_pcm_length]
+	
+	push es ; wait...
+	push bx
+	xor bx,bx
+	mov es,bx
+	mov bx,[es:46ch]
+.wait:
+	cmp bx,[es:46ch]
+	je .wait
+	pop bx
+	pop es
+	
+	; play the byte
+	
+	mov al,10010000b ; 001 = hardware re-triggerable one-shot
+	out 43h,al ; mode/command register
+	mov al,[si+bx] ; frequency (current sample byte)
+	shr al,1
+	inc al ; reduce distortion
+	out 42h,al
+	
+	cmp bx,0 ; at beginning of file?
+	je .beep_on ; if so, turn ON beeper
+	cmp bx,dx ; reached end of file?
+	je .beep_off ; if so, turn off beeper
+	jmp .next_byte ; otherwise, go to next byte
+	
+.beep_off:
+	call beep_off
+	jmp .end
+.beep_on:
+	call beep_on
+.next_byte:
+	inc word [beep_pcm_position]
+.end:
+	
+	call beep_pcm_off
+	pop dx
+	pop bx
+	pop ax
+	ret
 
 beep_22050 equ 62
 beep_22050_pwm equ beep_22050+30
