@@ -100,5 +100,5 @@ Fills the entire graphics buffer with a single colour, specified by **al**. This
 If something bad has bappened, call this function, and it'll halt the program and show the states of registers **ax**-**dx**.
 ## bgl_get_font_number_offset
 A quick and easy function for getting the font offset of a single digit. Put the digit in **ax**, and the font label in **bx**, and it'll return the offset back in **ax**.
-## bgl_get_font_offset(a)
-A *macro* for getting the font offset of a single letter, substituting **a** with the required letter, uppercase or lowercase. Work-in-progress, because the label **font_gfx** is required for it to work.
+## bgl_get_font_offset(a,b)
+A *macro* for getting the font offset of a single letter, substituting **a** with the required letter (uppercase or lowercase), and **b** with the label offset of the font.
