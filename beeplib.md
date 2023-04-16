@@ -1,15 +1,17 @@
 ## beep_play_sfx
-Plays a sound effect at the offset specified by **si**. Sound effects are stored as an "array" of words, with 0 denoting the end of a sound effect, and 1 denoting a loop, useful for "music tracks". To simulate note cuts, use a value such as 2 or 3, as they're high enough to be nearly inaudible.
+Plays a sound effect at the offset specified by **si**. Sound effects are stored as an "array" of words, with 0 denoting the end of a sound effect, and 1 denoting a loop, useful for "music" tracks. To simulate note cuts, use the value 3.
 ## beep_play_sample
-Plays a 1-bit PWM encoded sound through the PC speaker. **si** should contain the offset for the file, **dx** should contain the length of the file, and **cx** decides how fast the sound should play, with higher values resulting in slower playback. This will lock up the program temporarily as the CPU needs to dedicate all its time to playing the sound, so there are no stutters! To encode a sound, use "pcm2pwm.py" with an unsigned 8-bit wave file as the input.
+Plays a 1-bit sound through the PC speaker. **si** contains the offset for the file, **dx** should contain the length of the file, and **cx** decides how fast the sound should play, with higher values resulting in slower playback. This will lock up the program temporarily as the CPU needs to dedicate all its time to playing the sound, so there are no stutters! To encode a sound, use **pcm2pwm.py** with an unsigned 8-bit wave file as the input.
 
-Please refer to "pwm.asm" for an example of how this subroutine is used!
+Please refer to **pwm.asm** for an example of how this subroutine is used!
 ## beep_play_pcm_sample
 Plays an 8-bit unsigned PCM sound through the PC speaker. Usage of this command is identical to **beep_play_sample**.
 ## beep_play_pcm_sample2
 Identical to **beep_play_pcm_sample**, but without the audible carrier signal. This results in much better sound quality, but there are compatibility issues on some older computers.
 ## beep_handler
-Handles playback of sound effects. Put this in your main loop!
+Handles playback of sound effects/music. Put this in your main loop! A fun little addition is the word **beep_sfx_add** which alters the pitch by adding/subtracting from it!
+## beep_pcm_handler
+An awful implementation of asynchronous 8-bit sample playback. It works by playing a tiny chunk of the sample alongside the main loop. The start of the sample goes into **beep_pcm_offset**, and its length into **beep_pcm_length**. The speed of the sample is set using the byte **beep_pcm_speed**, and the length of each "chunk" is set using **beep_pcm_loops**. It's as awful as it sounds!
 ## beep_on
 Connects the PC speaker to timer 2, ready to start beeping.
 ## beep_off
