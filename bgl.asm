@@ -5,7 +5,7 @@
 ;	http://www.brackeen.com/vga/index.html
 ; 	https://stackoverflow.com/questions/6560343/double-buffer-video-in-assembler
 
-%define bgl_get_font_offset(a) font_gfx+(((8*8)+2)*(a-33))
+%define bgl_get_font_offset(a,b) b+(((8*8)+2)*(a-33))
 
 bgl_rle_word dw 0
 bgl_flip db 0
@@ -279,6 +279,32 @@ bgl_draw_gfx_rotate:
 	
 	pop bx
 	
+	cmp byte [bgl_no_bounds],0
+	jne .bounds_skip
+	
+	push ax
+	mov ax,[bgl_x_pos]
+	add ax,cx
+	cmp ax,320
+	pop ax
+	jg .skip
+	push ax
+	cmp ax,0
+	pop ax
+	jl .skip
+	
+	push ax
+	mov ax,[bgl_y_pos]
+	add ax,dx
+	cmp ax,200
+	pop ax
+	jg .skip
+	push ax
+	cmp ax,0
+	pop ax
+	jl .skip
+	
+.bounds_skip:
 	cmp byte [bgl_opaque],0
 	jne .draw
 	cmp al,[bgl_transparent]
@@ -378,7 +404,7 @@ bgl_draw_gfx_scale:
 	mov dx,[bgl_y_pos]
 	cmp byte [bgl_scale_centre],0
 	je .x_y_skip
-	mov eax,[bgl_scale_x]
+	mov eax,[bgl_scale_x] ; wip in pogess
 	shr eax,2
 	add cx,ax
 	mov eax,[bgl_scale_y]
@@ -421,6 +447,32 @@ bgl_draw_gfx_scale:
 	pop ecx
 	pop ebx
 	
+	cmp byte [bgl_no_bounds],0
+	jne .bounds_skip
+	
+	push ax
+	mov ax,[bgl_x_pos]
+	add ax,cx
+	cmp ax,320
+	pop ax
+	jg .skip
+	push ax
+	cmp ax,0
+	pop ax
+	jl .skip
+	
+	push ax
+	mov ax,[bgl_y_pos]
+	add ax,dx
+	cmp ax,200
+	pop ax
+	jg .skip
+	push ax
+	cmp ax,0
+	pop ax
+	jl .skip
+	
+.bounds_skip:
 	cmp byte [bgl_opaque],0
 	jne .draw
 	cmp al,[bgl_transparent]
@@ -1067,9 +1119,9 @@ bgl_write_buffer_fast:
 	push es
 
 	mov ax,es
-	mov ds,ax
+	mov ds,ax ; ds = es (bgl)
 	mov ax,fs
-	mov es,ax
+	mov es,ax ; es = fs (vga)
 	xor si,si
 	xor di,di
 	
@@ -1090,7 +1142,7 @@ bgl_write_buffer:
 	mov si,0
 .loop:
 	mov eax,[es:si]
-	mov dword [fs:si],eax ; todo - change this EEEEEAAAAAXXXX plz
+	mov dword [fs:si],eax ; weird way of doing it, but it works, and it does the same as write_buffer_fast, but without the keyboard weirdness, rep movsd is weird
 	add si,4
 	cmp si,64000
 	jne .loop
