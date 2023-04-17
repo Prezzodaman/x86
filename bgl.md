@@ -82,8 +82,10 @@ Restores the default key handler. **bgl_get_orig_key_handler** must be used befo
 Replaces the default key handler with the BGL's custom one, while getting the original key handler for later retrieval. The BGL's key handler allows for multiple key presses to be detected at once, and gives each key its own on/off state. To get the state of a key, offset **bgl_key_states** by the scan code value of the key you want to check.
 ## bgl_escape_exit
 Checks if the escape key is pressed, and if so, exits the program. Only functional if **bgl_replace_key_handler** is used prior.
+## bgl_escape_exit_fade
+Identical to **bgl_escape_exit**, but it fades out before exiting.
 ## bgl_wait_retrace
-Wait for the graphical retrace period to finish.
+Wait for the graphical retrace period to finish. Put this before **bgl_write_buffer** or else tearing will occur!
 ## bgl_init
 Gets the BGL's graphical capabilities ready for use by setting the graphics mode, "allocating" memory for the graphics buffer, pointing **fs** to the VGA buffer, pointing **es** to the BGL's graphics buffer, replacing the key handler, and clearing the contents of the BGL's buffer. If you want to draw directly to the VGA buffer, point **es** to **fs**.
 ## bgl_write_buffer
@@ -99,6 +101,16 @@ Fills the entire graphics buffer with a single colour, specified by **al**. This
 ## bgl_error
 If something bad has bappened, call this function, and it'll halt the program and show the states of registers **ax**-**dx**.
 ## bgl_get_font_number_offset
-A quick and easy function for getting the font offset of a single digit. Put the digit in **ax**, and the font label in **bx**, and it'll return the offset back in **ax**.
+A quick and easy function for getting the font offset of a single digit. Put the digit in **ax**, and the font label in **bx**, and it'll return the offset back in **ax**. This is also available for use as a macro, used similarly to **bgl_get_font_offset** - this function just exists if you want to use registers!
 ## bgl_get_font_offset(a,b)
 A *macro* for getting the font offset of a single letter, substituting **a** with the required letter (uppercase or lowercase), and **b** with the label offset of the font.
+## bgl_joypad_handler
+Put this in your main loop to add 2-player joypad support to your program. The joypad states for each player are held in memory locations **bgl_joypad_states_1** and **bgl_joypad_states_2** as single bytes containing binary states. Use bit testing to get the state of a certain button. Bits 0-3 are up, down, left and right, and bits 4 and 5 are buttons 1 and 2 respectively. The last 2 are unused. Please note that while a second joypad is supported, functionality hasn't been tested!
+## bgl_fade_in
+Fades the palette in from black. It looks a bit weird, but it probably won't get fixed because fading's here anyway!
+## bgl_fade_out
+Fades the palette out to black.
+## bgl_get_orig_palette
+Puts the current VGA colour palette into the VGA's temporary storage. This is required for all palette-related functions!
+## bgl_restore_orig_palette
+Restores the colours from the VGA's temporary storage back into the current palette.
