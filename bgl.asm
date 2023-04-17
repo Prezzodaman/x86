@@ -6,6 +6,7 @@
 ; 	https://stackoverflow.com/questions/6560343/double-buffer-video-in-assembler
 
 %define bgl_get_font_offset(a,b) b+(((8*8)+2)*(a-33))
+%define bgl_get_font_number_offset(a,b) (a+15)*((8*8)+2)
 
 bgl_rle_word dw 0
 bgl_flip db 0
@@ -55,17 +56,150 @@ bgl_font_offset dw 0
 bgl_font_size db 0
 bgl_font_spacing db 0
 bgl_font_string_offset dw 0
+
+bgl_joypad_states_1 db 0b00000000
+bgl_joypad_states_2 db 0b00000000
 	
-bgl_get_font_number_offset: ; input in ax (number 0-9), font label in bx, result will be in ax
-	push dx
+bgl_joypad_handler:
+	push ax
 	push bx
-	add ax,15
-	mov bx,(8*8)+2
-	xor dx,dx
-	mul bx
-	pop bx
-	add ax,bx
+	push cx
+	push dx
+	
+	; http://www.fysnet.net/joystick.htm
+	
+	; bgl_joypad_states:
+	; 87654321
+	; --------
+	; --21rldu
+	
+	; directions
+	
+	mov byte [bgl_joypad_states_1],0b00000000
+	mov ah,84h
+	mov dx,1
+	int 15h
+	
+	; left
+	
+	push ax
+	push cx
+	sub ax,126
+	shr ax,15
+	shl ax,2
+	sub cx,126
+	shr cx,15
+	shl cx,2
+	or byte [bgl_joypad_states_1],al
+	or byte [bgl_joypad_states_2],cl
+	
+	; right
+	
+	pop cx
+	pop ax
+	sub ax,160
+	shr ax,15
+	shl ax,15
+	not ax
+	shr ax,15
+	shl ax,3
+	sub cx,160
+	shr cx,15
+	shl cx,15
+	not cx
+	shr cx,15
+	shl cx,3
+	or byte [bgl_joypad_states_1],al
+	or byte [bgl_joypad_states_2],cl
+	
+	; up
+	
+	push bx
+	push dx
+	sub bx,126
+	shr bx,15
+	sub dx,126
+	shr dx,15
+	or byte [bgl_joypad_states_1],bl
+	or byte [bgl_joypad_states_2],dl
+	
+	; down
+	
 	pop dx
+	pop bx
+	sub bx,160
+	shr bx,15
+	shl bx,15
+	not bx
+	shr bx,15
+	shl bx,1
+	sub dx,160
+	shr dx,15
+	shl dx,15
+	not dx
+	shr dx,15
+	shl dx,1
+	
+	or byte [bgl_joypad_states_1],bl
+	or byte [bgl_joypad_states_2],dl
+	mov al,[bgl_joypad_states_1]
+	
+	; BAH'uns
+	
+	mov ah,84h
+	mov dx,0
+	int 15h
+	
+	; 1
+	
+	push ax
+	and al,0b00010000
+	shr al,4
+	not al
+	inc al
+	not al
+	shr al,7
+	shl al,4
+	or byte [bgl_joypad_states_1],al
+	
+	pop ax
+	push ax
+	and al,0b01000000
+	shr al,4
+	not al
+	inc al
+	not al
+	shr al,7
+	shl al,4
+	or byte [bgl_joypad_states_2],al
+	
+	; 2
+	
+	pop ax
+	push ax
+	and al,0b00100000
+	shr al,4
+	not al
+	inc al
+	not al
+	shr al,7
+	shl al,5
+	or byte [bgl_joypad_states_1],al
+	
+	pop ax
+	and al,0b10000000
+	shr al,4
+	not al
+	inc al
+	not al
+	shr al,7
+	shl al,5
+	or byte [bgl_joypad_states_2],al
+	
+	pop dx
+	pop cx
+	pop bx
+	pop ax
 	ret
 	
 bgl_pseudo_fade:
@@ -282,13 +416,15 @@ bgl_draw_gfx_rotate:
 	cmp byte [bgl_no_bounds],0
 	jne .bounds_skip
 	
-	push ax
+	push ax ; colour index
 	mov ax,[bgl_x_pos]
 	add ax,cx
-	cmp ax,320
+	cmp ax,319
 	pop ax
 	jg .skip
 	push ax
+	mov ax,[bgl_x_pos]
+	add ax,cx
 	cmp ax,0
 	pop ax
 	jl .skip
@@ -300,6 +436,8 @@ bgl_draw_gfx_rotate:
 	pop ax
 	jg .skip
 	push ax
+	mov ax,[bgl_y_pos]
+	add ax,dx
 	cmp ax,0
 	pop ax
 	jl .skip
@@ -453,10 +591,12 @@ bgl_draw_gfx_scale:
 	push ax
 	mov ax,[bgl_x_pos]
 	add ax,cx
-	cmp ax,320
+	cmp ax,319
 	pop ax
 	jg .skip
 	push ax
+	mov ax,[bgl_x_pos]
+	add ax,dx
 	cmp ax,0
 	pop ax
 	jl .skip
@@ -468,6 +608,8 @@ bgl_draw_gfx_scale:
 	pop ax
 	jg .skip
 	push ax
+	mov ax,[bgl_y_pos]
+	add ax,dx
 	cmp ax,0
 	pop ax
 	jl .skip
@@ -1034,10 +1176,12 @@ bgl_key_handler:
 bgl_get_orig_key_handler:
 	push bx
 	push es
+	push ax
 	mov ax,3509h ; get address of original key handler
 	int 21h
 	mov [bgl_key_handler_orig],bx ; offset
 	mov [bgl_key_handler_orig+2],es	; segment
+	pop ax
 	pop es
 	pop bx
 	ret
@@ -1045,10 +1189,12 @@ bgl_get_orig_key_handler:
 bgl_restore_orig_key_handler:
 	push dx
 	push ds
+	push ax
 	mov dx,[bgl_key_handler_orig]
 	mov ds,[bgl_key_handler_orig+2]
 	mov ax,2509h
 	int 21h
+	pop ax
 	pop ds
 	pop dx
 	ret
@@ -1104,6 +1250,7 @@ bgl_init: ; yeah mate, its bgl init bruv
 	call bgl_flood_fill
 	
 	call bgl_replace_key_handler
+	call bgl_get_orig_palette
 	
 	pop bx
 	pop ax
@@ -1184,113 +1331,203 @@ bgl_flood_fill_fast: ; di: start, cx: end
 	pop ax
 	ret
 	
-bgl_get_orig_palette:
+bgl_restore_orig_palette:
 	push ax
-	push bx
-	push di
+	push dx
+	push si
 	
-	;mov ah,48h ; allocate memory for the original vga palette
-	;mov bx,255/16 ; how many paragraphs to allocate
-	;int 21h ; ax will contain the address
+	;call bgl_fill_temp_palette
+	mov si,64000
 	
-	xor cx,cx ; colour index
-	xor di,di ; destination index
-.loop:
+	mov dx,3c8h
+	xor al,al
+	out dx,al
 	
 	mov dx,3c9h
+.loop:
+	;mov al,[bgl_temp_palette+si]
+	mov al,[fs:si]
+	out dx,al
+	inc si
+	cmp si,64000+768
+	jne .loop
+	
+	pop si
+	pop dx
+	pop ax
+	ret
+	
+bgl_get_orig_palette:
+	; puts default vga colours into the extra space after the graphics memory
+	push ax
+	push bx
+	push dx
+	push di
+	
+	xor cx,cx ; colour index
+	mov di,64000
+	
+	xor al,al
+	mov dx,3c7h ; read register (write register is 3c8h)
+	out dx,al
+.loop:
+	mov dx,3c9h
 	in al,dx ; r
-	mov byte [gs:di],al
+	mov byte [fs:di],al ; fs is the vga address...
 	inc di
 	in al,dx ; g
-	mov byte [gs:di],al
+	mov byte [fs:di],al
 	inc di
 	in al,dx ; b
-	mov byte [gs:di],al
+	mov byte [fs:di],al
 	inc di
 	
 	inc cx ; go to next index
 	cmp cx,255 ; reached last index?
-	je .end ; if so, end
-	jmp .loop ; otherwise, keep getting those colours
+	jb .loop ; if not, keep getting those colours
 	
-.end:
-
 	pop di
+	pop dx
 	pop bx
 	pop ax
 	ret
 	
-bgl_fade_in:
-;	mov al,[gs:0]
-;.qw:
-;	jmp .qw
-	push cx
+bgl_temp_palette times 768 db 0
+	
+bgl_fill_temp_palette:
+	push ax
 	push si
+	push di
+	
+	mov si,64000
+	xor di,di
+.loop:
+	mov al,[fs:si]
+	mov byte [bgl_temp_palette+di],al
+	inc si
+	inc di
+	cmp di,768
+	jne .loop
+	
+	pop di
+	pop si
+	pop ax
+	ret
+	
+bgl_clear_temp_palette:
+	push bx
+	
+	xor bx,bx
+.loop:
+	mov byte [bgl_temp_palette+bx],0
+	inc bx
+	cmp bx,768
+	jne .loop
+	
+	pop bx
+	ret
+	
+bgl_fade_out:
 	push ax
 	push bx
+	push cx
 	push dx
+
+	; implemented based on pseudocode from:
+	; http://qzx.com/pc-gpe/vgaregs.txt
 	
-	xor cx,cx ; colour index
-	mov si,0 ; source index
-	mov bx,1 ; fade intensity
-.palette_loop:
-	push bx
+	call bgl_fill_temp_palette
+	mov cl,64 ; fade steps
 	
-	xor ax,ax
-	mov al,cl
-	mov dx,3c8h ; colour index is in al
+.step_loop:
+	xor bx,bx ; byte counter
+	
+	mov dx,3c8h ; write address - entry
+	xor al,al ; entry 0
 	out dx,al
-	inc dx ; go to 3c9h, where you give it the rgb values
+	mov dx,3c9h ; data
+.byte_loop:
+	mov al,[bgl_temp_palette+bx]
+	cmp al,0 ; this byte 0?
+	je .byte_skip ; if so, keep it 0
+	dec al ; if not, decrease it
+	mov byte [bgl_temp_palette+bx],al
+.byte_skip:
+	out dx,al
+	inc bx ; increase byte counter
+	cmp bx,256*3 ; reached final byte?
+	jne .byte_loop ; if not, continue bything
 	
-	mov al,[gs:si]
-	push dx
-	xor dx,dx
-	div bx
+	call bgl_wait_retrace
+	
+	dec cl
+	cmp cl,0 ; last fade step?
+	jne .step_loop ; do it again
+
 	pop dx
-	out dx,al ; r
-	inc si
-	
-	mov al,[gs:si]
-	push dx
-	xor dx,dx
-	div bx
-	pop dx
-	out dx,al ; g
-	inc si
-	
-	mov al,[gs:si]
-	push dx
-	xor dx,dx
-	div bx
-	pop dx
-	out dx,al ; b
-	inc si
-	
-	pop bx
-	
-	inc cx ; next index
-	cmp cx,255 ; reached last one?
-	jne .palette_loop ; if not, update next index
-	; otherwise, reduce intensity and start again
-	
-	;call bgl_wait_retrace
-	;dec bx
-	;cmp bx,2
-	;je .end
-	;xor cx,cx
-	;jmp .palette_loop
-	
-.end:
-	pop dx
+	pop cx
 	pop bx
 	pop ax
+	ret
+	
+	
+bgl_fade_in: ; work in progress - it does technically work, but it looks a bit weird, and i know why. but i've got fading to work anyway so i'm happy!
+	push ax
+	push bx
+	push cx
+	push dx
+	push si
+	
+	call bgl_clear_temp_palette
+	mov cl,64 ; fade steps
+	
+.step_loop:
+	xor bx,bx ; byte counter
+	mov si,64000
+	
+	mov dx,3c8h ; write address - entry
+	xor al,al ; entry 0
+	out dx,al
+	mov dx,3c9h ; data
+.byte_loop:
+	mov al,[bgl_temp_palette+bx] ; get existing palette colour
+	cmp al,[fs:si] ; is this byte matching?
+	je .byte_skip ; if so, keep it that way
+	inc al ; if not, increase it
+	mov byte [bgl_temp_palette+bx],al
+.byte_skip:
+	out dx,al
+	inc si
+	inc bx ; increase byte counter
+	cmp bx,256*3 ; reached final byte?
+	jne .byte_loop ; if not, continue bything
+	
+	call bgl_wait_retrace
+	
+	dec cl
+	cmp cl,0 ; last fade step?
+	jne .step_loop ; do it again
+
 	pop si
+	pop dx
 	pop cx
+	pop bx
+	pop ax
 	ret
 	
 bgl_escape_exit:
 	cmp word [bgl_key_states+1],0 ; escape pressed?
 	je .skip
+	call bgl_reset
+	mov ah,4ch ; return to command line
+	int 21h
+.skip:
+	ret
+	
+bgl_escape_exit_fade:
+	cmp word [bgl_key_states+1],0 ; escape pressed?
+	je .skip
+	call bgl_fade_out
 	call bgl_reset
 	mov ah,4ch ; return to command line
 	int 21h
