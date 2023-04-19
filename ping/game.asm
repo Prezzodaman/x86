@@ -2,6 +2,9 @@
 %include "bats.asm"
 
 game:
+	not byte [bat_hit_sound]
+	not byte [table_hit_sound]
+
 	call bats_handler
 	call game_init
 	mov byte [game_started],0
@@ -70,6 +73,20 @@ exit_button_x equ again_button_x+90
 exit_button_y equ again_button_y
 exit_button_width equ 54
 exit_button_height equ again_button_height
+	
+table_sound_effect:
+	not byte [bat_hit_sound]
+	cmp byte [table_hit_sound],0
+	jne .sound_2
+	mov si,table1_pcm
+	mov cx,table1_pcm_length
+	jmp .end
+.sound_2:
+	mov si,table2_pcm
+	mov cx,table2_pcm_length
+.end:
+	call blaster_play_sound
+	ret
 	
 ending_buttons_draw:
 	push bx
@@ -351,6 +368,9 @@ table_x equ 40
 table_y equ 200-table_height
 table_width equ 112
 table_height equ 78
+
+bat_hit_sound db 0
+table_hit_sound db 0
 
 table_y_offset dw 0 ; used for intro
 

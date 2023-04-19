@@ -75,8 +75,7 @@ ball_handler:
 	neg ax
 	mov word [ball_bounceness],ax
 	mov word [ball_y_vel],ax
-	mov si,table_sfx
-	call beep_play_sfx
+	call table_sound_effect
 	jmp .bounce_skip
 .y_bottom_check:
 	cmp word [ball_y_pos],200<<ball_precision ; reached bottom of screen?
@@ -131,8 +130,7 @@ ball_handler:
 	;shl ax,1
 	;mov word [ball_y_vel],ax
 	
-	mov si,bat_1_sfx
-	call beep_play_sfx
+	call bat_sound_effect
 	jmp .end
 .bat_1_batting:
 	cmp word [ball_z_pos],0-ball_z_bat
@@ -156,8 +154,7 @@ ball_handler:
 	sar ax,5 ; reduce the speed
 	mov word [ball_x_vel],ax
 	
-	mov si,bat_2_sfx
-	call beep_play_sfx
+	call bat_sound_effect
 	jmp .end
 .not_served:
 	mov ax,[bat_1_x_pos]

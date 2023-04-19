@@ -3,6 +3,20 @@ bats_handler:
 	call bat_2_handler
 	ret
 
+bat_sound_effect:
+	not byte [table_hit_sound]
+	cmp byte [bat_hit_sound],0
+	jne .sound_2
+	mov si,hit1_pcm
+	mov cx,hit1_pcm_length
+	jmp .end
+.sound_2:
+	mov si,hit2_pcm
+	mov cx,hit2_pcm_length
+.end:
+	call blaster_play_sound
+	ret
+
 bat_2_handler:
 	;mov ax,[bat_1_x_pos]
 	;shr ax,1

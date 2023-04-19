@@ -1,12 +1,16 @@
 
 	org 100h
-
+	
 	jmp main
 	
+blaster_buffer_size equ 4000
+%include "../blaster.asm"
 %include "../bgl.asm"
 %include "../beeplib.asm"
-	
+
 main:
+	call blaster_init
+	blaster_set_sample_rate 11025
 	call bgl_init
 	mov byte [bgl_background_colour],0
 	jmp title_screen
@@ -24,6 +28,21 @@ ball_5_gfx: incbin "ball_5.gfx"
 ball_6_gfx: incbin "ball_6.gfx"
 
 cursor_gfx: incbin "cursor.gfx"
+
+hit1_pcm: incbin "hit1.raw"
+hit1_pcm_length equ $-hit1_pcm
+hit2_pcm: incbin "hit2.raw"
+hit2_pcm_length equ $-hit2_pcm
+;one_pcm: incbin "one.raw"
+;one_pcm_length equ $-one_pcm
+;sucky_pcm: incbin "sucky.raw"
+;sucky_pcm_length equ $-sucky_pcm
+swoosh_pcm: incbin "swoosh.raw"
+swoosh_pcm_length equ $-swoosh_pcm
+table1_pcm: incbin "table1.raw"
+table1_pcm_length equ $-table1_pcm
+table2_pcm: incbin "table2.raw"
+table2_pcm_length equ $-table2_pcm
 
 font_gfx:
 	incbin "../bgl/c64_33.gfx"

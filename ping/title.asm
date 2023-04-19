@@ -40,7 +40,7 @@ title_screen:
 	call title_ball_handler
 	call title_logo_handler
 	call title_select_handler
-	call beep_handler
+	;call beep_handler
 
 	call title_cursor
 	call bgl_wait_retrace
@@ -177,7 +177,7 @@ title_select_handler:
 	mov byte [select_box_delay],0
 	inc byte [select_box_current]
 	cmp byte [select_box_current],3
-	jb .end
+	jb .sound
 	mov byte [intro_section],2
 	jmp .end
 .fly_out:
@@ -189,6 +189,11 @@ title_select_handler:
 	jb .end
 	mov byte [select_box_delay],0
 	mov byte [intro_section],4
+	jmp .end
+.sound:
+	mov si,swoosh_pcm
+	mov cx,swoosh_pcm_length
+	call blaster_play_sound
 .end:
 	ret
 
@@ -296,39 +301,6 @@ title_cursor:
 	mov byte [select_box_rollover],3
 	cmp bx,1 ; left button clicked?
 	jne .select_boxes
-	
-	mov cx,beep_11025-14
-	
-	mov ax,[logo_word_x_pos]
-	mov word [bgl_collision_x1],ax
-	mov ax,[logo_word_y_pos]
-	mov word [bgl_collision_y1],ax
-	mov word [bgl_collision_w1],81
-	mov word [bgl_collision_h1],30
-	
-	call bgl_point_collision_check
-	cmp byte [bgl_collision_flag],1
-	je .presley
-	
-	mov ax,[logo_word_x_pos+2]
-	mov word [bgl_collision_x1],ax
-	mov ax,[logo_word_y_pos+2]
-	mov word [bgl_collision_y1],ax
-	mov word [bgl_collision_w1],49
-	
-	call bgl_point_collision_check
-	cmp byte [bgl_collision_flag],1
-	je .ping
-	
-	mov ax,[logo_word_x_pos+4]
-	mov word [bgl_collision_x1],ax
-	mov ax,[logo_word_y_pos+4]
-	mov word [bgl_collision_y1],ax
-	mov word [bgl_collision_w1],54
-	
-	call bgl_point_collision_check
-	cmp byte [bgl_collision_flag],1
-	je .pong
 	
 .select_boxes:
 	; select boxes
@@ -447,21 +419,6 @@ title_cursor:
 	mov byte [bat_2_type],2
 	jmp .end
 	
-.presley:
-	mov si,voice_1_pcm
-	mov dx,voice_1_pcm_length
-	call beep_play_sample
-	jmp .end
-.ping:
-	mov si,voice_2_pcm
-	mov dx,voice_2_pcm_length
-	call beep_play_sample
-	jmp .end
-.pong:
-	mov si,voice_3_pcm
-	mov dx,voice_3_pcm_length
-	call beep_play_sample
-	
 .end:
 	ret
 
@@ -502,6 +459,9 @@ title_logo_handler:
 	cmp word [logo_word_y_pos],20
 	jg .end
 	mov byte [intro_section],1
+	mov si,swoosh_pcm
+	mov cx,swoosh_pcm_length
+	call blaster_play_sound
 .end:
 	ret
 	
@@ -575,8 +535,9 @@ title_ball_handler:
 	inc word [title_ball_y_vel]
 	cmp word [title_ball_y_pos],logo_word_start_y-13 ; reached text y?
 	jl .y_skip
-	mov si,bat_1_sfx
-	call beep_play_sfx
+	mov si,table1_pcm
+	mov cx,table1_pcm_length
+	call blaster_play_sound
 	mov word [title_ball_y_vel],-18 ; bounce da ball
 	mov byte [logo_rising],1
 	inc byte [logo_word_rising]
@@ -632,12 +593,12 @@ start_button_x_pos equ (320/2)-(68/2)
 start_button_y_pos equ 160
 start_button_rollover db 0
 
-voice_1_pcm: incbin "voice_1_bin.raw"
-voice_1_pcm_length equ $-voice_1_pcm
-voice_2_pcm: incbin "voice_2_bin.raw"
-voice_2_pcm_length equ $-voice_2_pcm
-voice_3_pcm: incbin "voice_3_bin.raw"
-voice_3_pcm_length equ $-voice_3_pcm
+;voice_1_pcm: incbin "voice_1_bin.raw"
+;voice_1_pcm_length equ $-voice_1_pcm
+;voice_2_pcm: incbin "voice_2_bin.raw"
+;voice_2_pcm_length equ $-voice_2_pcm
+;voice_3_pcm: incbin "voice_3_bin.raw"
+;voice_3_pcm_length equ $-voice_3_pcm
 
 bat_1_type db 0 ; used for selections, that's why it's here
 bat_2_type db 2
