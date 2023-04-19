@@ -22,7 +22,6 @@ blaster_io equ 220h
 blaster_dma equ 1
 blaster_irq equ 7
 blaster_interrupt equ 8+blaster_irq
-blaster_buffer_size equ 20000
 
 blaster_old_interrupt_offset dw 0
 blaster_old_interrupt_segment dw 0

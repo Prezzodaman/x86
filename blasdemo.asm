@@ -1,4 +1,5 @@
 
+blaster_buffer_size equ 10000
 %include "blaster.asm"
 
 	org 100h
