@@ -5,22 +5,16 @@
 	
 %include "../bgl.asm"
 %include "../beeplib.asm"
-%include "../random.asm"
 	
 main:
 	call bgl_init
-	
-	;mov word [beep_pcm_position],0
-	;mov word [beep_pcm_length],0
-	;mov byte [beep_pcm_speed],beep_11025
-	;mov word [beep_pcm_loops],400
-	mov byte [bgl_background_colour],200
-	
+	mov byte [bgl_background_colour],0
 	jmp title_screen
 	;jmp game
 	
 %include "title.asm"
 %include "game.asm"
+%include "stars.asm"
 
 ball_1_gfx: incbin "ball_1.gfx"
 ball_2_gfx: incbin "ball_2.gfx"
@@ -30,21 +24,6 @@ ball_5_gfx: incbin "ball_5.gfx"
 ball_6_gfx: incbin "ball_6.gfx"
 
 cursor_gfx: incbin "cursor.gfx"
-
-;hit1_pcm: incbin "hit1.raw"
-;hit1_pcm_length equ $-hit1_pcm
-;hit2_pcm: incbin "hit2.raw"
-;hit2_pcm_length equ $-hit2_pcm
-;one_pcm: incbin "one.raw"
-;one_pcm_length equ $-one_pcm
-;sucky_pcm: incbin "sucky.raw"
-;sucky_pcm_length equ $-sucky_pcm
-;swoosh_pcm: incbin "swoosh.raw"
-;swoosh_pcm_length equ $-swoosh_pcm
-;table1_pcm: incbin "table1.raw"
-;table1_pcm_length equ $-table1_pcm
-;table2_pcm: incbin "table2.raw"
-;table2_pcm_length equ $-table2_pcm
 
 font_gfx:
 	incbin "../bgl/c64_33.gfx"

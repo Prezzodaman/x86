@@ -2,7 +2,9 @@ ball_handler:
 	cmp byte [ball_served],0 ; has the ball been served?
 	je .not_served ; if not, clip ball to bat
 	; ball is served!
-	mov al,[ball_out_x]
+	cmp byte [game_over],0 ; has game ended?
+	jne .end ; if so, skip the entire ball handler
+	mov al,[ball_out_x] ; ball served, game running!
 	or al,[ball_out_z] ; get your mind out of the gutter
 	mov byte [ball_out],al
 	inc byte [ball_x_vel_add_timer]
@@ -81,11 +83,15 @@ ball_handler:
 	jl .bounce_skip ; if not, skip
 	call bat_score
 	call ball_reset
+	cmp byte [game_over],0 ; bat_score determines if game_over is true or not
+	jne .end ; if the game is over, skip the rest of this code!
 	mov byte [ball_served],0
 	mov si,out_sfx
 	call beep_play_sfx
 .bounce_skip:
 	; bat collision detection
+	cmp byte [ball_out],0 ; skip collision checks if ball is out
+	jne .end
 	mov ax,[ball_x_pos] ; get ball collision stuff ready
 	shr ax,ball_precision
 	mov word [bgl_collision_x2],ax
@@ -178,6 +184,8 @@ ball_reset:
 	ret
 	
 ball_serve_handler:
+	cmp byte [game_over],0
+	jne .end
 	mov ax,3
 	int 33h
 	cmp bx,1 ; left button clicked?
@@ -210,15 +218,19 @@ ball_serve_handler:
 	shl ax,3 ; make the ball bounce higher/lower
 	mov word [ball_y_vel],ax
 
-	mov ax,(320/2)-(bat_1_width/2) ; set x vel based on the positioning of your paddle
-	sub ax,[bat_1_x_pos] ; distance from the centre of the screen
-	sar ax,5 ; first to reduce the speed...
+	mov ax,320/2 ; set x vel based on the positioning of your paddle
+	sub ax,[bat_1_x_pos]
+	add ax,bat_1_width/4
+	sar ax,5
 	shl ax,ball_precision ; and then for the precision
 	mov word [ball_x_vel],ax
 .end:
 	ret
 	
 ball_draw:
+	cmp byte [game_over],0
+	jne .end
+
 	; IUMPERTENT:::: the ball x and y are shifted to the left for accuracy. make sure to shift back!
 	mov ax,[ball_x_pos]
 	shr ax,ball_precision
@@ -255,6 +267,7 @@ ball_draw:
 	mov ax,[ball_rotation]
 	mov word [bgl_rotate_angle],ax
 	call bgl_draw_gfx_rotate
+.end:
 	ret
 
 ball_served db 0

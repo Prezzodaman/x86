@@ -24,7 +24,6 @@ bat_2_handler:
 .served_skip:
 	sar ax,ball_precision ; it's using high values, because ax starts with the ball x, so now we shift it down
 	sub ax,[bat_2_x_pos]
-	add ax,32/16
 	sar ax,3 ; speed
 	mov word [bat_2_x_vel],ax
 .end:
@@ -49,26 +48,28 @@ bat_1_handler:
 	; x
 	
 	shr cx,1
-	sub cx,59/2 ; centres the bat to the mouse
+	sub cx,bat_1_width/2 ; centres the bat to the mouse
 	cmp cx,0 ; reached left of screen?
 	jle .x_left ; clip to left
-	cmp cx,320-59 ; reached right of screen?
+	cmp cx,320-bat_1_width ; reached right of screen?
 	jge .x_right ; clip to right
 	mov word [bat_1_x_pos],cx ; move and rotate as normal
 	jmp .rotate
 	
 .x_left:
 	mov word [bat_1_x_pos],0
+	mov word [bat_1_x_distance],32+360
 	jmp .rotate_end ; no rotation if clipped either side
 	
 .x_right:
-	mov word [bat_1_x_pos],320-59
+	mov word [bat_1_x_pos],320-bat_1_width
+	mov word [bat_1_x_distance],(0-32)+360
 	jmp .rotate_end
 	
 .rotate:
 	; find rotation angle
 	
-	add cx,59/2 ; get back original cx so we can find the distance
+	add cx,bat_1_width/2 ; get back original cx so we can find the distance
 	sub cx,320/2
 	neg cx
 	sar cx,2
@@ -79,6 +80,9 @@ bat_1_handler:
 	ret
 	
 bat_1_draw:
+	cmp byte [game_over],0
+	jne .end
+	
 	mov byte [bgl_flip],0
 	mov ax,[bat_1_x_pos]
 	mov word [bgl_x_pos],ax
@@ -95,22 +99,25 @@ bat_1_draw:
 	je .pres
 .dew:
 	mov word [bgl_buffer_offset],bat_dew_gfx
-	jmp .end
+	jmp .skip
 .doong:
 	mov word [bgl_buffer_offset],bat_doong_gfx
-	jmp .end
+	jmp .skip
 .pres:
 	mov word [bgl_buffer_offset],bat_pres_gfx
-	jmp .end
-.end:
+.skip:
 	call bgl_draw_gfx_rotate
+.end:
 	ret
 	
 bat_2_draw:
+	cmp byte [game_over],0
+	jne .end
+	
 	mov byte [bgl_flip],0
 	mov ax,[bat_2_x_pos]
 	mov word [bgl_x_pos],ax
-	add ax,46/2
+	add ax,bat_2_width/2
 	sub ax,320/2
 	neg ax
 	sar ax,2
@@ -128,16 +135,15 @@ bat_2_draw:
 	je .pres
 .dew:
 	mov word [bgl_buffer_offset],bat_dew_small_gfx
-	jmp .end
+	jmp .skip
 .doong:
 	mov word [bgl_buffer_offset],bat_doong_small_gfx
-	jmp .end
+	jmp .skip
 .pres:
 	mov word [bgl_buffer_offset],bat_pres_small_gfx
-	jmp .end
-	
-.end:
+.skip:
 	call bgl_draw_gfx_rotate
+.end:
 	ret
 	
 bat_score:
@@ -162,6 +168,10 @@ bat_score:
 	jmp .end
 .p1:
 	inc byte [bat_1_points]
+	cmp byte [bat_1_points],9
+	jne .end
+	mov byte [game_winner],0
+	mov byte [game_over],1
 	jmp .end
 .p2: ; checks
 	cmp byte [ball_out_x],0
@@ -171,6 +181,10 @@ bat_score:
 	jmp .end
 .p2_2:
 	inc byte [bat_2_points]
+	cmp byte [bat_2_points],9
+	jne .end
+	mov byte [game_winner],1
+	mov byte [game_over],1
 	
 .end:
 	ret

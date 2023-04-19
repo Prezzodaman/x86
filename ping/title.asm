@@ -1,9 +1,9 @@
 title_screen:
 	mov word [title_ball_angle],0
 	mov word [title_ball_x_vel],3
-	mov word [title_ball_x_pos],14
+	mov word [title_ball_x_pos],18
 	mov word [title_ball_y_vel],0
-	mov word [title_ball_y_pos],0
+	mov word [title_ball_y_pos],-13
 	mov byte [title_ball_active],1
 	
 	mov word [logo_word_x_pos],40+10
@@ -24,11 +24,14 @@ title_screen:
 	mov byte [select_box_delay],0
 	mov byte [select_box_current],0
 	mov byte [select_box_rollover],3
+	
+	mov word [star_y_offset],0
 .loop:
 	mov al,[bgl_background_colour]
 	call bgl_flood_fill_full
 
 	call title_logo_draw
+	call stars_draw
 	call title_ball_draw
 	call title_select_draw
 	call title_start_button
@@ -42,8 +45,13 @@ title_screen:
 	call title_cursor
 	call bgl_wait_retrace
 	call bgl_write_buffer_fast
-	call bgl_escape_exit
+	call bgl_escape_exit_fade
 	
+	cmp byte [faded],0
+	jne .end
+	mov byte [faded],1
+	call bgl_fade_in
+.end:
 	jmp .loop
 
 title_blerb_draw:
@@ -580,13 +588,14 @@ title_ball_handler:
 .y_skip:
 	sub word [title_ball_angle],8
 	
-	cmp word [title_ball_x_pos],320-13 ; reached right side of screen?
+	cmp word [title_ball_x_pos],320 ; reached right side of screen?
 	jl .end
 	mov byte [title_ball_active],0 ; make the ball inactive if so
 	mov byte [logo_rising_delay],0
 .end:
 	ret
 
+faded db 0
 intro_section db 0 ; 0: ball bouncing, words rising, all that good stuff, 1: players fly in from the sides, 2: you decide who's playin', 3: players fly out, 4: logo goes up
 title_ball_angle dw 0
 title_ball_y_vel dw 0
