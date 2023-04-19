@@ -10,7 +10,7 @@
 	
 main:
 	mov al,15
-	call bgl_flood_fill
+	call bgl_flood_fill_full
 	
 	mov byte [bgl_opaque],0
 	mov byte [bgl_flip],0
@@ -19,17 +19,17 @@ main:
 	mov word [bgl_x_pos],10
 	mov ax,text_1_gfx
 	mov word [bgl_buffer_offset],ax
-	call bgl_draw_gfx
+	call bgl_draw_gfx_fast
 	mov word [bgl_x_pos],230
 	mov ax,text_2_gfx
 	mov word [bgl_buffer_offset],ax
-	call bgl_draw_gfx
+	call bgl_draw_gfx_fast
 	
 	mov word [bgl_x_pos],90
 	mov word [bgl_y_pos],200-111
 	mov ax,rick_body_gfx
 	mov word [bgl_buffer_offset],ax
-	call bgl_draw_gfx
+	call bgl_draw_gfx_fast
 	
 	xor bx,bx
 	mov bl,[wave_table_x_index]
@@ -45,8 +45,8 @@ main:
 	mov bl,[wave_table_y_index]
 	mov ax,[wave_table+bx]
 	sar ax,4
-	add ax,40
-	add byte [wave_table_y_index],6
+	add ax,44
+	add byte [wave_table_y_index],2
 	cmp byte [wave_table_y_index],62*2
 	jb .skip2
 	mov byte [wave_table_y_index],0
@@ -54,9 +54,9 @@ main:
 	mov word [bgl_y_pos],ax
 	mov ax,rick_head_gfx
 	mov word [bgl_buffer_offset],ax
-	call bgl_draw_gfx
+	call bgl_draw_gfx_fast
 	
-	cmp byte [song_delay],4
+	cmp byte [song_delay],8
 	jb .skip3
 	call beep_handler
 	mov byte [song_delay],0
@@ -68,8 +68,8 @@ main:
 	jmp exit
 	
 .end:
-	call bgl_write_buffer
 	call bgl_wait_retrace
+	call bgl_write_buffer_fast
 	jmp main
 
 exit:
@@ -82,7 +82,6 @@ exit:
 	
 %include "..\bgl.asm"
 %include "..\beeplib.asm"
-%include "..\wave_table.asm"
 %include "rickroll_song.asm"
 
 rick_body_gfx: incbin "rick_body.gfx"
