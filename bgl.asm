@@ -6,7 +6,7 @@
 ; 	https://stackoverflow.com/questions/6560343/double-buffer-video-in-assembler
 
 %define bgl_get_font_offset(a,b) b+(((8*8)+2)*(a-33))
-%define bgl_get_font_number_offset(a,b) (a+15)*((8*8)+2)
+%define bgl_get_font_number_offset(a,b) b+((a+15)*((8*8)+2))
 
 bgl_rle_word dw 0
 bgl_flip db 0
@@ -200,6 +200,18 @@ bgl_joypad_handler:
 	pop cx
 	pop bx
 	pop ax
+	ret
+
+bgl_get_font_number_offset: ; input in ax (number 0-9), font label in bx, result will be in ax
+	push dx
+	push bx
+	add ax,15
+	mov bx,(8*8)+2
+	xor dx,dx
+	mul bx
+	pop bx
+	add ax,bx
+	pop dx
 	ret
 	
 bgl_pseudo_fade:
@@ -453,8 +465,7 @@ bgl_draw_gfx_rotate:
 	
 .draw:
 	add al,[bgl_tint]
-	stosb
-	dec di
+	mov byte [es:di],al
 .skip:
 	inc di
 	inc cx
@@ -625,8 +636,7 @@ bgl_draw_gfx_scale:
 	
 .draw:
 	add al,[bgl_tint]
-	stosb
-	dec di
+	mov byte [es:di],al
 .skip:
 	inc di
 	inc cx
@@ -672,8 +682,7 @@ bgl_get_gfx_pixel:
 	; output: al = pixel
 	; formula: (y*width)+x
 	
-	xor ah,ah
-	mov al,dl ; y*width
+	movzx ax,dl ; y*width
 	movzx bx,[bgl_width]
 	xor dx,dx
 	mul bx
@@ -734,8 +743,7 @@ bgl_draw_gfx_fast:
 	mov al,[bgl_background_colour]
 .erase_skip:
 	add al,[bgl_tint]
-	stosb ; write the contents of al to es:di, increment di (faster than mov)
-	dec di ; remove effect of auto increment because of the skip
+	mov byte [es:di],al
 .draw_skip:
 	inc di
 	inc cx
@@ -791,11 +799,12 @@ bgl_draw_gfx:
     mov dx,[bgl_y_pos] ; y
 	
 	cmp byte [bgl_flip],0 ; drawing flipped?
-	je .loop ; if not, carry on as usual
+	je .flip_skip ; if not, carry on as usual
 	xor ax,ax
 	mov al,[bgl_width]
 	add cx,ax ; otherwise, start from the end
-
+.flip_skip:
+	call bgl_get_x_y_offset
 .loop:
 	
     mov al,[si] ; pixel colour
@@ -817,16 +826,17 @@ bgl_draw_gfx:
 	je .erase_skip ; if not, use the proper colour as set earlier
 	mov al,[bgl_background_colour] ; otherwise, use background colour
 .erase_skip:
-	call bgl_get_x_y_offset
 	add al,[bgl_tint]
 	mov byte [es:di],al
 	
 .skip:
 	inc si ; next byte
 	inc cx ; increase x
+	inc di
 	cmp byte [bgl_flip],0 ; drawing flipped?
 	je .skip2 ; if not, carry on as usual
 	sub cx,2 ; otherwise, decrease x
+	sub di,2
 .skip2:
 	cmp byte [bgl_flip],0 ; drawing flipped?
 	je .skip3 ; if not, carry on as usual
@@ -840,6 +850,11 @@ bgl_draw_gfx:
 	cmp al,[bgl_width] ; reached the end of the line?
 	jb .loop ; if not, go to next horizontal pixel (using unsigned checks to support widths over 127)
 	mov cx,[bgl_x_pos] ; we've reached the end of the line, so reset x and increase y
+	push cx
+	movzx cx,[bgl_width]
+	sub di,cx
+	add di,320
+	pop cx
 	jmp .skip5
 .skip4:
 	mov cx,[bgl_x_pos]
@@ -907,8 +922,8 @@ bgl_draw_full_gfx_rle:
 	je .draw_loop_end ; if not, get next word
 	dec ah
 	mov word [bgl_rle_word],ax
-	stosb
-	
+	mov byte [es:di],al
+	inc di
 	cmp di,64000 ; reached bottom of graphic?
 	jne .draw_loop ; if not, continue drawing
 	jmp .end ; otherwise, stop drawing altogether
@@ -939,8 +954,7 @@ bgl_draw_gfx_rle: ; "draw graphics... really?"
 	mov cx,[bgl_x_pos]
 	cmp byte [bgl_flip],0
 	je .flip_skip
-	xor bh,bh
-	mov bl,[bgl_width]
+	movzx bx,[bgl_width]
 	add cx,bx
 .flip_skip:
 	mov dx,[bgl_y_pos]
@@ -1024,9 +1038,8 @@ bgl_draw_gfx_rle: ; "draw graphics... really?"
 .draw_loop_main:
 	push ax
 	add al,[bgl_tint]
-	stosb ; this is actually faster than moving the byte manually!
+	mov byte [es:di],al
 	pop ax
-	dec di
 .draw_loop_skip:
 	mov word [bgl_rle_word],ax
 	inc di
@@ -1048,8 +1061,7 @@ bgl_draw_gfx_rle: ; "draw graphics... really?"
 	inc dx ; reached end of line, increase y and reset x
 	xor cx,cx
 	mov ax,320
-	xor bh,bh
-	mov bl,[bgl_width]
+	movzx bx,[bgl_width]
 	cmp byte [bgl_flip],0 ; drawing flipped?
 	je .draw_loop_flip_skip ; if not, continue as normal
 	add ax,bx
@@ -1072,6 +1084,92 @@ bgl_draw_gfx_rle: ; "draw graphics... really?"
 	
 .end:
 
+	pop si
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+	ret
+	
+
+bgl_draw_gfx_rle_fast: ; "draw graphics, really fast"
+	; using minimal checks and no flipping
+	push ax
+	push bx
+	push cx
+	push dx
+	push si
+	
+	mov cx,[bgl_x_pos]
+	movzx bx,[bgl_width]
+	mov dx,[bgl_y_pos]
+	call bgl_get_x_y_offset
+	
+.init:
+	mov si,[bgl_buffer_offset]
+	mov al,[si]
+	mov byte [bgl_width],al
+	mov al,[si+1]
+	mov byte [bgl_height],al
+	mov al,[si+2]
+	mov byte [bgl_transparent],al
+	
+	cmp byte [bgl_opaque],0
+	je .opaque_skip
+	mov byte [bgl_transparent],255
+	
+.opaque_skip:
+	xor cx,cx
+	xor dx,dx
+	
+	add si,2
+.loop:
+	mov ax,[si]
+	mov word [bgl_rle_word],ax
+	
+.draw_loop: ; drawing al for ah amount of times
+	mov ax,[bgl_rle_word]
+	
+	cmp ah,0 ; no more repeats?
+	je .draw_loop_end ; if not, get next word
+	dec ah
+	
+	cmp al,[bgl_transparent]
+	je .draw_loop_skip
+	
+	; no bound checks!
+	
+	cmp byte [bgl_erase],0 ; erasing?
+	je .draw_loop_main ; if not, continue as normal
+	mov al,[bgl_background_colour] ; otherwise, replace pixel colour with the background colour
+	
+.draw_loop_main:
+	push ax
+	add al,[bgl_tint]
+	stosb
+	pop ax
+	dec di
+.draw_loop_skip:
+	mov word [bgl_rle_word],ax
+	inc di
+	inc cx ; increase "internal" x position
+	cmp cl,[bgl_width] ; reached end of the line?
+	jne .draw_loop ; if not, continue drawing
+	inc dx ; reached end of line, increase y and reset x
+	xor cx,cx
+	mov ax,320 ; screen width - graphic width
+	movzx bx,[bgl_width] ; -'-
+	sub ax,bx ; -'-
+	add di,ax ; -'-
+	cmp dl,[bgl_height] ; reached bottom of graphic?
+	jne .draw_loop ; if not, continue drawing
+	jmp .end ; otherwise, stop drawing altogether
+	
+.draw_loop_end: ; get next word
+	add si,2
+	jmp .loop ; very complicated piece of code
+	
+.end:
 	pop si
 	pop dx
 	pop cx
@@ -1244,10 +1342,8 @@ bgl_init: ; yeah mate, its bgl init bruv
 	sub ax,64000/16 ; amount of memory we want, in "segments" (16 bytes)
 	mov es,ax ; es is the temporary graphics buffer
 	
-	mov al,0 ; clear buffer
-	xor di,di
-	mov cx,64000
-	call bgl_flood_fill
+	xor al,al ; clear buffer
+	call bgl_flood_fill_full
 	
 	call bgl_replace_key_handler
 	call bgl_get_orig_palette
@@ -1258,7 +1354,6 @@ bgl_init: ; yeah mate, its bgl init bruv
 	
 	
 bgl_write_buffer_fast:
-	; this is WAY faster, but causes some weird issues with key presses for some reason
 	push ax
 	push si
 	push di
@@ -1272,7 +1367,7 @@ bgl_write_buffer_fast:
 	xor si,si
 	xor di,di
 	
-	mov cx,64000/2
+	mov cx,64000/4
 	rep movsd ; ultimate speed: FOUR BYTES AT A TIME.
 	
 	pop es
@@ -1541,8 +1636,7 @@ bgl_error:
 	push bx
 	push ax
 
-	mov al,2 ; restore graphics mode
-	xor ah,ah
+	mov ax,2 ; restore graphics mode
 	int 10h
 	
 	mov ah,9
@@ -1650,7 +1744,7 @@ bgl_draw_font_string:
 	mov ax,[bgl_font_offset]
 	add ax,bx
 	mov word [bgl_buffer_offset],ax
-	call bgl_draw_gfx
+	call bgl_draw_gfx_fast
 	
 .skip:
 	xor ax,ax
@@ -1668,8 +1762,7 @@ bgl_draw_font_string:
 	
 bgl_reset:
 	call bgl_restore_orig_key_handler
-	mov al,2 ; restore graphics mode
-	xor ah,ah
+	mov ax,2 ; restore graphics mode
 	int 10h
 	ret
 	
