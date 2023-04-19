@@ -117,3 +117,5 @@ Fades the palette out to black.
 Puts the current VGA colour palette into the VGA's temporary storage. This is required for all palette-related functions!
 ## bgl_restore_orig_palette
 Restores the colours from the VGA's temporary storage back into the current palette.
+## bgl_intro
+Draws a full-screen RLE-encoded graphic to the buffer, fades in, waits for a few frames, and fades out again. This can be used as an "intro" to your game or program. Specify the offset for the graphic using **bgl_buffer_offset**. BGL has its own funny intro graphic which can be used!
