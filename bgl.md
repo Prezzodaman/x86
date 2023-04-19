@@ -24,6 +24,9 @@ Draws a *rotated* graphic to the BGL's buffer!! Uses all the same parameters as 
 ## bgl_draw_gfx_rle
 Draws an RLE encoded graphics file to the BGL's graphics buffer. Usage is identical to **bgl_draw_gfx**. To convert an image to RLE, use **convert.py** the same way as before, but use the option **--rle**. It's advisable to use a different file extension to make it easier to identify an RLE encoded file. Using RLE offers a significant reduction in file size, and is also slightly faster to draw.
 
+## bgl_draw_gfx_rle_fast
+Identical to **bgl_draw_gfx_rle**, but removes **bgl_flip** and skips all the edge checks to increase speed. It draws graphics... rle fast.
+
 ## bgl_draw_full_gfx
 Draws a full-screen graphics file to the BGL's graphics buffer. The only required parameter is **bgl_buffer_offset**. This command is unsuitable for .com files because a full-screen graphic uses up 64k, which spans the entire memory. Therefore, it hasn't been tested, but should work just fine.
 
@@ -91,7 +94,7 @@ Gets the BGL's graphical capabilities ready for use by setting the graphics mode
 ## bgl_write_buffer
 Writes the content of the BGL's graphics buffer to the screen.
 ## bgl_write_buffer_fast
-Same as **bgl_write_buffer**, but writes 4 bytes at a time instead of 2. This is extremely fast, but funny enough, it's actually slower on some older machines.
+Same as **bgl_write_buffer**, but uses a different method for improved performance.
 ## bgl_flood_fill
 Fills the entirety of the BGL's graphics buffer with a colour specified by **al**. Useful as a "clear screen" command for clearing up previously drawn graphics. Specify the start offset using **di**, and the end offset using **cx**.
 ## bgl_flood_fill_fast
