@@ -60,6 +60,21 @@ bgl_font_string_offset dw 0
 bgl_joypad_states_1 db 0b00000000
 bgl_joypad_states_2 db 0b00000000
 	
+bgl_intro:
+	push cx
+	call bgl_draw_full_gfx_rle
+	
+	call bgl_write_buffer_fast
+	call bgl_fade_in
+	
+	mov cx,150
+delay:
+	call bgl_wait_retrace
+	loop delay
+	call bgl_fade_out
+	pop cx
+	ret
+	
 bgl_joypad_handler:
 	push ax
 	push bx
