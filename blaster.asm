@@ -4,6 +4,8 @@
 
 ; important: sounds must be included at the bottom of your file. your program will act weird otherwise!
 ; also, this file must be included at the top of the file, so the macros can be used
+	
+	jmp blaster_end
 
 %define blaster_get_time_constant(a) (65536-(256000000/a))>>8
 
@@ -29,11 +31,102 @@ blaster_buffer times blaster_buffer_size db 0
 blaster_sound_offset dw 0
 blaster_sound_length dw 0
 
+; 4-voice sample mixing @ 11025 hz
+blaster_mix_voices equ 4
+blaster_mix_buffer_size equ (625/4)+1 ; 625 samples between clicks at the highest vga frame rate
+blaster_mix_buffer times blaster_mix_buffer_size db 0
+blaster_mix_sample_offset times blaster_mix_voices dw 0
+blaster_mix_sample_position times blaster_mix_voices dw 0
+blaster_mix_sample_length times blaster_mix_voices dw 0
+blaster_mix_sample_playing db 0 ; bunch of bit states. because it's a byte, it allows for up to 8 voices
+
 blaster_dma_page dw 0
 blaster_dma_offset dw 0
+
+blaster_mix_play_sample: ; al = voice number, si = sample, cx = length
+	push bx
+	movzx bx,al
+	shl bx,1
+	mov word [blaster_mix_sample_offset+bx],si
+	mov word [blaster_mix_sample_position+bx],0
+	mov word [blaster_mix_sample_length+bx],cx
+	mov cl,al
+	mov al,1
+	shl al,cl
+	or byte [blaster_mix_sample_playing],al
+	pop bx
+	ret
+
+blaster_mix_calculate:
+	push ax
+	push bx
+	push cx
+	push si
+	push di
+
+	; using di as a counter instead of cx, because it needs to be used as an offset
+	xor si,si ; the current sample index (source)
+	xor di,di ; the buffer index (destination)
 	
-	jmp end
+	; clear buffer first!
+.clear_loop:
+	mov byte [blaster_mix_buffer+di],0
+	inc di
+	cmp di,blaster_mix_buffer_size
+	jb .clear_loop
 	
+	xor di,di
+.buffer_loop:
+	xor bx,bx ; voice
+.voice_loop:
+	mov cl,bl
+	shr cl,1 ; word to byte
+	mov al,1
+	shl al,cl ; al will contain 1, 2, 4, 8, etc...
+	test byte [blaster_mix_sample_playing],al ; current sample playing at all?
+	jz .null_byte ; if not, add a null byte
+	mov si,[blaster_mix_sample_offset+bx]
+	add si,[blaster_mix_sample_position+bx]
+	mov al,[si]
+	shr al,blaster_mix_voices>>1 ; divide by the amount of voices
+	add byte [blaster_mix_buffer+di],al
+	mov ax,[blaster_mix_sample_length+bx]
+	inc word [blaster_mix_sample_position+bx] ; go to next byte in the sample!
+	cmp word [blaster_mix_sample_position+bx],ax ; reached end of sample?
+	jb .voice_end ; if not, skip
+	dec ax
+	mov word [blaster_mix_sample_position+bx],ax
+	
+	mov cl,bl
+	shr cl,1
+	mov al,1
+	shl al,cl
+	xor byte [blaster_mix_sample_playing],al
+	
+	jmp .voice_end
+.null_byte:
+	add byte [blaster_mix_buffer+di],128>>(blaster_mix_voices>>1)
+.voice_end:
+	add bx,2 ; next voice
+	cmp bx,blaster_mix_voices*2
+	jb .voice_loop ; haven't reached the last voice yet...
+	inc di ; reached last voice, go to next byte in buffer
+	cmp di,blaster_mix_buffer_size
+	jb .buffer_loop ; haven't reached end of buffer, reset voice value
+	
+	; reached end of buffer, all voices processed. now we need to copy to the sound blaster's actual buffer
+
+	mov si,blaster_mix_buffer
+	mov cx,blaster_mix_buffer_size
+	call blaster_fill_buffer
+	
+	pop di
+	pop si
+	pop cx
+	pop bx
+	pop ax
+	ret
+
 blaster_init:
 	push bx
 	call blaster_reset_dsp
@@ -147,7 +240,6 @@ blaster_fill_buffer:
 	; offset=dma_offset (wow)
 
 	push ax
-	;push cx
 	push es
 	push di
 	
@@ -163,8 +255,6 @@ blaster_fill_buffer:
 	inc di
 	loop .nothing
 	pop cx
-	;mov si,sound
-	;mov cx,blaster_buffer_size
 	cmp cx,blaster_buffer_size
 	jle .size_skip
 	mov cx,blaster_buffer_size
@@ -179,7 +269,6 @@ blaster_fill_buffer:
 	
 	pop di
 	pop es
-	;pop cx
 	pop ax
 	ret
 
@@ -360,4 +449,4 @@ blaster_reset_dsp:
 	pop ax
 	ret
 	
-end:
+blaster_end:
