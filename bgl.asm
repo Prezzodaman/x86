@@ -4,6 +4,8 @@
 ; references:
 ;	http://www.brackeen.com/vga/index.html
 ; 	https://stackoverflow.com/questions/6560343/double-buffer-video-in-assembler
+	
+	jmp bgl_end
 
 %define bgl_get_font_offset(a,b) b+(((8*8)+2)*(a-33))
 %define bgl_get_font_number_offset(a,b) b+((a+15)*((8*8)+2))
@@ -57,8 +59,8 @@ bgl_font_size db 0
 bgl_font_spacing db 0
 bgl_font_string_offset dw 0
 
-bgl_joypad_states_1 db 0b00000000
-bgl_joypad_states_2 db 0b00000000
+bgl_joypad_states_1 db 00000000b
+bgl_joypad_states_2 db 00000000b
 	
 bgl_intro:
 	push cx
@@ -90,7 +92,7 @@ bgl_joypad_handler:
 	
 	; directions
 	
-	mov byte [bgl_joypad_states_1],0b00000000
+	mov byte [bgl_joypad_states_1],00000000b
 	mov ah,84h
 	mov dx,1
 	int 15h
@@ -168,7 +170,7 @@ bgl_joypad_handler:
 	; 1
 	
 	push ax
-	and al,0b00010000
+	and al,00010000b
 	shr al,4
 	not al
 	inc al
@@ -179,7 +181,7 @@ bgl_joypad_handler:
 	
 	pop ax
 	push ax
-	and al,0b01000000
+	and al,01000000b
 	shr al,4
 	not al
 	inc al
@@ -192,7 +194,7 @@ bgl_joypad_handler:
 	
 	pop ax
 	push ax
-	and al,0b00100000
+	and al,00100000b
 	shr al,4
 	not al
 	inc al
@@ -202,7 +204,7 @@ bgl_joypad_handler:
 	or byte [bgl_joypad_states_1],al
 	
 	pop ax
-	and al,0b10000000
+	and al,10000000b
 	shr al,4
 	not al
 	inc al
@@ -793,6 +795,11 @@ bgl_draw_gfx:
 	push dx
 	push si
 	
+	cmp word [bgl_x_pos],320 ; check if it's in range before drawing
+	jge .end
+	cmp word [bgl_y_pos],200
+	jge .end
+	
 	; graphics are stored x first, then y
 	
 	mov si,[bgl_buffer_offset]
@@ -886,6 +893,7 @@ bgl_draw_gfx:
 	cmp al,[bgl_height] ; reached the bottom of the graphic?
 	jb .loop ; if not, go to next line (using unsigned checks to support heights over 127)
 	
+.end:
 	pop si
 	pop dx
 	pop cx
@@ -918,6 +926,7 @@ bgl_draw_full_gfx: ; WARNING: this is STILL untested because a full image uses u
 bgl_draw_full_gfx_rle:
 	push ax
 	push bx
+	push cx
 	push si
 	push di
 	
@@ -950,6 +959,7 @@ bgl_draw_full_gfx_rle:
 .end:
 	pop di
 	pop si
+	pop cx
 	pop bx
 	pop ax
 	ret
@@ -1161,9 +1171,8 @@ bgl_draw_gfx_rle_fast: ; "draw graphics, really fast"
 .draw_loop_main:
 	push ax
 	add al,[bgl_tint]
-	stosb
+	mov byte [es:di],al
 	pop ax
-	dec di
 .draw_loop_skip:
 	mov word [bgl_rle_word],ax
 	inc di
@@ -1344,7 +1353,6 @@ bgl_wait_retrace:
 	
 bgl_init: ; yeah mate, its bgl init bruv
 	push ax
-	push bx
 	
     mov al,13h ; graphics mode: 13h (256 colour vga)
     xor ah,ah ; function number
@@ -1363,13 +1371,13 @@ bgl_init: ; yeah mate, its bgl init bruv
 	call bgl_replace_key_handler
 	call bgl_get_orig_palette
 	
-	pop bx
 	pop ax
 	ret
 	
 	
 bgl_write_buffer_fast:
 	push ax
+	push cx
 	push si
 	push di
 	push ds
@@ -1389,11 +1397,12 @@ bgl_write_buffer_fast:
 	pop ds
 	pop di
 	pop si
+	pop cx
 	pop ax
 	ret	
 	
 bgl_write_buffer:
-	push ax
+	push eax
 	push si
 
 	mov si,0
@@ -1405,7 +1414,7 @@ bgl_write_buffer:
 	jne .loop
 	
 	pop si
-	pop ax
+	pop eax
 	ret
 	
 bgl_flood_fill_full:
@@ -1446,7 +1455,6 @@ bgl_restore_orig_palette:
 	push dx
 	push si
 	
-	;call bgl_fill_temp_palette
 	mov si,64000
 	
 	mov dx,3c8h
@@ -1455,7 +1463,6 @@ bgl_restore_orig_palette:
 	
 	mov dx,3c9h
 .loop:
-	;mov al,[bgl_temp_palette+si]
 	mov al,[fs:si]
 	out dx,al
 	inc si
@@ -1706,6 +1713,7 @@ bgl_write_hex_byte:
 	
 bgl_write_hex_digit: ; dl: value between 0-15 (if above, it'll get the last digit, so 14 will return 4)
 	push dx
+	push ax
 	
 	mov al,dl
 	and al,15
@@ -1720,12 +1728,15 @@ bgl_write_hex_digit: ; dl: value between 0-15 (if above, it'll get the last digi
 	mov ah,2
 	int 21h
 	
+	pop ax
 	pop dx
 	ret
 	
 bgl_draw_font_string:
 	push ax
 	push bx
+	push dx
+	push si
 	mov ax,[bgl_x_pos]
 	push ax
 
@@ -1771,14 +1782,18 @@ bgl_draw_font_string:
 .end:
 
 	pop word [bgl_x_pos]
+	pop si
+	pop dx
 	pop bx
 	pop ax
 	ret
 	
 bgl_reset:
+	push ax
 	call bgl_restore_orig_key_handler
 	mov ax,2 ; restore graphics mode
 	int 10h
+	pop ax
 	ret
 	
 bgl_error_message: db "oops something bad has bappened",13,10,"$"
@@ -1797,3 +1812,5 @@ wave_table_deg:
 	dw -360,-360,-360,-360,-360,-359,-359,-358,-357,-356,-355,-354,-353,-351,-350,-348,-347,-345,-343,-341,-339,-337,-334,-332,-329,-327,-324,-321,-318,-315,-312,-309,-306,-302,-299,-295,-292,-288,-284,-280,-276,-272,-268,-264,-259
 	dw -255,-251,-246,-241,-237,-232,-227,-222,-217,-212,-207,-202,-197,-191,-186,-181,-175,-170,-164,-158,-153,-147,-141,-135,-130,-124,-118,-112,-106,-100,-94,-88,-81,-75,-69,-63,-57,-51,-44,-38,-32,-26,-19,-13,-7
 	dw  -1
+	
+bgl_end:

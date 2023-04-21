@@ -30,20 +30,23 @@ blaster_old_interrupt_segment dw 0
 blaster_buffer times blaster_buffer_size db 0
 blaster_sound_offset dw 0
 blaster_sound_length dw 0
+blaster_sound_looping db 0
+
+blaster_dma_page dw 0
+blaster_dma_offset dw 0
 
 ; 4-voice sample mixing @ 11025 hz
-blaster_mix_voices equ 4
+blaster_mix_voices_shift equ 2
+blaster_mix_voices equ 1<<blaster_mix_voices_shift
 blaster_mix_buffer_size equ (625/4)+1 ; 625 samples between clicks at the highest vga frame rate
 blaster_mix_buffer times blaster_mix_buffer_size db 0
 blaster_mix_sample_offset times blaster_mix_voices dw 0
 blaster_mix_sample_position times blaster_mix_voices dw 0
 blaster_mix_sample_length times blaster_mix_voices dw 0
 blaster_mix_sample_playing db 0 ; bunch of bit states. because it's a byte, it allows for up to 8 voices
+blaster_mix_sample_looping db 0 ; same goes for this
 
-blaster_dma_page dw 0
-blaster_dma_offset dw 0
-
-blaster_mix_play_sample: ; al = voice number, si = sample, cx = length
+blaster_mix_play_sample: ; al = voice number, ah = looping (0 or 1), si = sample, cx = length
 	push bx
 	movzx bx,al
 	shl bx,1
@@ -54,6 +57,17 @@ blaster_mix_play_sample: ; al = voice number, si = sample, cx = length
 	mov al,1
 	shl al,cl
 	or byte [blaster_mix_sample_playing],al
+	
+	mov al,1
+	shl al,cl
+	cmp ah,0 ; looping?
+	jne .looping ; if so, set bit
+	xor al,11111111b ; clear bit
+	and byte [blaster_mix_sample_looping],al
+	jmp .end
+.looping:
+	or byte [blaster_mix_sample_looping],al
+.end:
 	pop bx
 	ret
 
@@ -88,24 +102,32 @@ blaster_mix_calculate:
 	mov si,[blaster_mix_sample_offset+bx]
 	add si,[blaster_mix_sample_position+bx]
 	mov al,[si]
-	shr al,blaster_mix_voices>>1 ; divide by the amount of voices
+	shr al,blaster_mix_voices_shift ; divide by the amount of voices
 	add byte [blaster_mix_buffer+di],al
 	mov ax,[blaster_mix_sample_length+bx]
 	inc word [blaster_mix_sample_position+bx] ; go to next byte in the sample!
 	cmp word [blaster_mix_sample_position+bx],ax ; reached end of sample?
 	jb .voice_end ; if not, skip
-	dec ax
-	mov word [blaster_mix_sample_position+bx],ax
+	; reached end of sample, but are we looping?
 	
-	mov cl,bl
+	mov cl,bl ; this has to be recalculated here!
 	shr cl,1
 	mov al,1
 	shl al,cl
-	xor byte [blaster_mix_sample_playing],al
+	test byte [blaster_mix_sample_looping],al ; this is sample set to loop?
+	jz .not_looping
+	mov word [blaster_mix_sample_position+bx],0 ; sample is looping, get it back to the beginning!
+	jmp .voice_end
+	
+.not_looping: ; not looping, keep the sample at the end
+	xor byte [blaster_mix_sample_playing],al ; al will contain the shifty bit value
+	mov ax,[blaster_mix_sample_length+bx]
+	dec ax
+	mov word [blaster_mix_sample_position+bx],ax
 	
 	jmp .voice_end
 .null_byte:
-	add byte [blaster_mix_buffer+di],128>>(blaster_mix_voices>>1)
+	add byte [blaster_mix_buffer+di],128>>blaster_mix_voices_shift
 .voice_end:
 	add bx,2 ; next voice
 	cmp bx,blaster_mix_voices*2
