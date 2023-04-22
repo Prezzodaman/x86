@@ -1,3 +1,6 @@
+
+	jmp random_end
+
 randomize:
 	push ax ; ax through dx are all affected by the "get system time" function
 	push bx
@@ -13,10 +16,12 @@ randomize:
 	pop ax
 	ret
 	
-random: ; gets a random number between 0-65536, puts it into ax, randomizes "seed"
+random: ; gets a random number between 0-65535, puts it into ax, randomizes "seed"
 	mov ax,[global_randomizer]
 	add word [global_randomizer],2649 ; yet another meaningless number
 	call randomize
 	ret
 
 global_randomizer dw 0 ; name of my next album
+
+random_end:

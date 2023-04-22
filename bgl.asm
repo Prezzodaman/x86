@@ -833,7 +833,7 @@ bgl_draw_gfx:
 	cmp al,[bgl_transparent]
 	je .skip ; if the pixel is "transparent", skip drawing
 	cmp byte [bgl_no_bounds],0 ; are we performing the bound check?
-	je .bounds_skip ; if not, skip it
+	jne .bounds_skip ; if not, skip it
 	cmp cx,320
 	jge .skip ; if the pixel has exceeded the horizontal boundaries, skip
 	cmp cx,0
@@ -1403,17 +1403,17 @@ bgl_write_buffer_fast:
 	
 bgl_write_buffer:
 	push eax
-	push si
+	push di
 
-	mov si,0
+	mov di,0
 .loop:
-	mov eax,[es:si]
-	mov dword [fs:si],eax ; weird way of doing it, but it works, and it does the same as write_buffer_fast, but without the keyboard weirdness, rep movsd is weird
-	add si,4
-	cmp si,64000
-	jne .loop
+	mov eax,[es:di]
+	mov dword [fs:di],eax ; weird way of doing it, but it works, and it does the same as write_buffer_fast, but without the keyboard weirdness, rep movsd is weird
+	stosd
+	cmp di,64000
+	jb .loop
 	
-	pop si
+	pop di
 	pop eax
 	ret
 	
