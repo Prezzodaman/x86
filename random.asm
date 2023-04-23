@@ -19,7 +19,6 @@ randomize:
 random: ; gets a random number between 0-65535, puts it into ax, randomizes "seed"
 	mov ax,[global_randomizer]
 	add word [global_randomizer],2649 ; yet another meaningless number
-	call randomize
 	ret
 
 global_randomizer dw 0 ; name of my next album
