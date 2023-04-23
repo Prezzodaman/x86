@@ -1,5 +1,6 @@
 ship_bullet_draw:
 	xor bx,bx
+	mov word [bgl_buffer_offset],ship_bullet_gfx
 .loop:
 	cmp byte [ship_bullet_moving+bx],0 ; current bullet moving?
 	je .end ; if not, do nothing
@@ -7,7 +8,6 @@ ship_bullet_draw:
 	mov word [bgl_x_pos],ax
 	mov ax,[ship_bullet_y+bx]
 	mov word [bgl_y_pos],ax
-	mov word [bgl_buffer_offset],ship_bullet_gfx
 	call bgl_draw_gfx
 .end:
 	add bx,2
@@ -37,11 +37,13 @@ ship_bullet_handler:
 	mov word [bgl_collision_h1],6
 	mov word [bgl_collision_w2],bug_width ; same for all bugs
 	mov word [bgl_collision_h2],bug_height
-	push bx ; push bullet counter
+	mov cx,bx ; cx unused for now, so we're using it as temporary storage for the bullet index
 	xor bx,bx ; we're now counting bugs...
 .bug_loop:
 	cmp byte [bug_active+bx],0
 	je .bug_loop_skip
+	cmp byte [bug_shot+bx],0
+	jne .bug_loop_skip
 	mov ax,[bug_x+bx]
 	sar ax,bug_precision
 	mov word [bgl_collision_x2],ax
@@ -50,17 +52,29 @@ ship_bullet_handler:
 	mov word [bgl_collision_y2],ax
 	call bgl_collision_check
 	cmp byte [bgl_collision_flag],0
-	je .bug_loop_skip
-	mov byte [bug_active+bx],0
-	pop bx ; get back bullet counter
-	mov byte [ship_bullet_moving+bx],0
+	je .bug_loop_skip ; no collision
+	cmp byte [bug_type+bx],0 ; check if this bug type requires multiple hits
+	je .bug_loop_hit_skip ; one hit
+	inc byte [bug_hits+bx]
+	cmp byte [bug_hits+bx],2 ; maximum hits?
+	jne .bug_loop_bullet_reset
+	call bugs_add_score
+.bug_loop_hit_skip:
+	call bugs_add_score
+	mov byte [bug_shot+bx],1
+	mov byte [bug_explose_frame+bx],0
+	inc word [bugs_shot]
+.bug_loop_bullet_reset:
 	push bx
+	mov bx,cx
+	mov byte [ship_bullet_moving+bx],0
+	pop bx
 .bug_loop_skip:
 	add bx,2
 	cmp bx,bug_amount*2
 	jne .bug_loop
 .bug_loop_end:
-	pop bx ; get back bullet counter
+	mov bx,cx
 .end:
 	add bx,2
 	cmp bx,ship_bullet_amount*2 ; reached last bullet?
@@ -103,9 +117,20 @@ ship_handler:
 	mov word [ship_bullet_x+bx],ax
 	mov ax,[ship_y]
 	mov word [ship_bullet_y+bx],ax
+	call ship_add_shot
 	jmp .end
 .shoot_shot: ; best l'bale name
 	mov byte [ship_shot],0
+.end:
+	ret
+	
+ship_add_shot:
+	cmp byte [player_current],0
+	jne .p2
+	inc word [player_1_shots]
+	jmp .end
+.p2:
+	inc word [player_2_shots]
 .end:
 	ret
 	
