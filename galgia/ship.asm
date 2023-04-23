@@ -27,6 +27,40 @@ ship_bullet_handler:
 .top_skip:
 	mov ax,ship_bullet_speed ; move bullet up
 	sub word [ship_bullet_y+bx],ax
+	
+	; collision checks for all bugs!
+	mov ax,[ship_bullet_x+bx]
+	mov word [bgl_collision_x1],ax
+	mov ax,[ship_bullet_y+bx]
+	mov word [bgl_collision_y1],ax
+	mov word [bgl_collision_w1],2
+	mov word [bgl_collision_h1],6
+	mov word [bgl_collision_w2],bug_width ; same for all bugs
+	mov word [bgl_collision_h2],bug_height
+	push bx ; push bullet counter
+	xor bx,bx ; we're now counting bugs...
+.bug_loop:
+	cmp byte [bug_active+bx],0
+	je .bug_loop_skip
+	mov ax,[bug_x+bx]
+	sar ax,bug_precision
+	mov word [bgl_collision_x2],ax
+	mov ax,[bug_y+bx]
+	sar ax,bug_precision
+	mov word [bgl_collision_y2],ax
+	call bgl_collision_check
+	cmp byte [bgl_collision_flag],0
+	je .bug_loop_skip
+	mov byte [bug_active+bx],0
+	pop bx ; get back bullet counter
+	mov byte [ship_bullet_moving+bx],0
+	push bx
+.bug_loop_skip:
+	add bx,2
+	cmp bx,bug_amount*2
+	jne .bug_loop
+.bug_loop_end:
+	pop bx ; get back bullet counter
 .end:
 	add bx,2
 	cmp bx,ship_bullet_amount*2 ; reached last bullet?
