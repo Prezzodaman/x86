@@ -1,4 +1,5 @@
-org 100h
+	
+	org 100h
 
 main:
 	mov dx,msg
@@ -9,41 +10,40 @@ main:
 	mov ah,10 ; get input
 	int 21h
 
-	mov si,input_buffer ; compare strings
+	movzx bx,[input_buffer+1] ; number of characters actually read
+	mov byte [input_buffer+bx+2],"$" ; add a dollar at the end
+
+	mov dx,msg2 ; "the thing you said was:"
+	mov ah,9
+	int 21h
+	
+	mov dx,input_buffer+2 ; show the message you entered
+	mov ah,9
+	int 21h
+	
+	mov dx,crlf ; carriage return
+	mov ah,9
+	int 21h
+
+	mov si,input_buffer+2 ; compare strings
 	mov di,compare
-	cld
-	repe cmpsb
-	je equal
-	mov byte [is_equal],0
-
-equal:
-	xor bx,bx ; clear register bx (not necessary for now)
-	mov bl,input_buffer[1] ; move offset of buffer end into lower bits of bx
-	mov byte input_buffer[bx+2],"$" ; add a dollar at the end
-	; we use bx instead of bl because addresses must be 16-bit
-
-	mov dx,msg2
-	mov ah,9
-	int 21h
-	lea dx,[input_buffer+2] ; must use lea for offsets!
-	mov ah,9
-	int 21h
+	movzx cx,[input_buffer+1]
+.check:
+	mov al,[si]
+	mov ah,[di]
+	cmp al,ah
+	jne .end ; strings aren't equal, go to end
+	inc si ; strings are equal so far, continue checking
+	inc di
+	loop .check
 	
-	mov dx,crlf
-	mov ah,9
-	int 21h
-	
-	mov ax,0
-	mov bx,is_equal
-	cmp ax,bx
-	je end
-	
+.snark: ; strings are equal, show a very serious message
 	mov dx,msg3
 	mov ah,9
 	int 21h
 	
-end:
-	mov ah,0x4c
+.end:
+	mov ah,4ch
 	int 21h
 
 msg db "Hello world!",13,10,"$"
@@ -51,5 +51,6 @@ msg2 db "The thing you said was:",13,10,"$"
 msg3 db "That's a bit stupid isn't it?",13,10,"$"
 compare db "yes",13,10
 crlf db 13,10,"$"
-input_buffer db 10,?,10 dup(" ")
-is_equal db 1
+input_buffer
+	db 10,0
+	resb 11 ; 10 + 1 for the eof character
