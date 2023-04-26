@@ -1351,29 +1351,57 @@ bgl_wait_retrace:
 	pop ax
 	ret
 	
-bgl_init: ; yeah mate, its bgl init bruv
-	push ax
-	
+bgl_init_first:
     mov al,13h ; graphics mode: 13h (256 colour vga)
     xor ah,ah ; function number
     int 10h
 	
 	mov ax,0a000h
 	mov fs,ax ; fs Should(tm) always contain the vga memory address
+	ret
 	
-	mov ax, word [2] ; psp: segment of first byte beyond program (word)
-	sub ax,64000/16 ; amount of memory we want, in "segments" (16 bytes)
-	mov es,ax ; es is the temporary graphics buffer
-	
+bgl_init_last:
 	xor al,al ; clear buffer
 	call bgl_flood_fill_full
 	
 	call bgl_replace_key_handler
 	call bgl_get_orig_palette
+	ret
 	
+bgl_init: ; yeah mate, its bgl init bruv
+	push ax
+	call bgl_init_first
+	call bgl_allocate_com
+	call bgl_init_last
 	pop ax
 	ret
 	
+bgl_init_seg: ; yeaaah init seg?!
+	push ax
+	call bgl_init_first
+	call bgl_allocate_seg
+	call bgl_init_last
+	pop ax
+	ret
+	
+bgl_allocate_com:
+	mov ax, word [2] ; psp: segment of first byte beyond program (word)
+	sub ax,64000/16 ; amount of memory we want, in "segments" (16 bytes)
+	mov es,ax ; es is the temporary graphics buffer
+	ret
+	
+bgl_allocate_seg:
+	mov ah,4ah ; resize memory block
+	mov bx,64000/16
+	int 21h
+	jc bgl_error
+	
+	mov ah,48h ; allocate memory
+	mov bx,64000/16
+	int 21h
+	jc bgl_error
+	mov es,ax
+	ret
 	
 bgl_write_buffer_fast:
 	push ax
