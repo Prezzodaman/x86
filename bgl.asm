@@ -62,6 +62,33 @@ bgl_font_string_offset dw 0
 bgl_joypad_states_1 db 00000000b
 bgl_joypad_states_2 db 00000000b
 	
+bgl_get_sine: ; value in ax, result in ax
+	push bx
+	push dx
+	xor dx,dx
+	mov bx,360
+	div bx
+	mov bx,dx
+	shl bx,1
+	mov ax,[wave_table_deg+bx]
+	pop dx
+	pop bx
+	ret
+	
+bgl_get_cosine: ; value in ax, result in ax
+	push bx
+	push dx
+	xor dx,dx
+	add ax,90
+	mov bx,360
+	div bx
+	mov bx,dx
+	shl bx,1
+	mov ax,[wave_table_deg+bx]
+	pop dx
+	pop bx
+	ret
+	
 bgl_intro:
 	push cx
 	call bgl_draw_full_gfx_rle
@@ -1758,6 +1785,56 @@ bgl_write_hex_digit: ; dl: value between 0-15 (if above, it'll get the last digi
 	
 	pop ax
 	pop dx
+	ret
+	
+bgl_draw_font_number:
+	; eax = number
+	; cx = digits
+	push bx
+	push dx
+	
+	push eax
+	mov ax,cx ; get start x
+	movzx bx,[bgl_font_spacing]
+	xor dx,dx
+	mul bx ; digits * font spacing
+	add word [bgl_x_pos],ax
+	pop eax
+	
+	push eax ;
+.loop:
+	mov bx,10
+	pop eax ;
+	xor edx,edx
+	div ebx ; dx will contain the remainder...
+	push eax ; the value to multiply again
+	
+	mov eax,edx
+	add eax,15 ; numbers start here!
+	
+	push eax
+	movzx eax,byte [bgl_font_size]
+	mov ebx,eax ; font size*font size
+	xor edx,edx
+	mul ebx
+	add eax,2 ; width/height
+	mov ebx,eax
+	pop eax
+	mul ebx
+	
+	mov bx,ax ; using multiplied number as offset...
+	mov ax,[bgl_font_offset]
+	mov word [bgl_buffer_offset],ax
+	add word [bgl_buffer_offset],bx
+	call bgl_draw_gfx_fast
+	movzx ax,[bgl_font_spacing]
+	sub word [bgl_x_pos],ax
+	
+	loop .loop
+	
+	pop eax ; ...eeeeEEEEEEAAAAAAAAAAXXXX
+	pop dx
+	pop bx
 	ret
 	
 bgl_draw_font_string:
