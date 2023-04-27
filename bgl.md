@@ -10,7 +10,7 @@ Draws a graphics file to the BGL's graphics buffer. The maximum width and height
 - **bgl_no_bounds** - If set, edge clipping will be disabled, speeding things up (byte)
 - **bgl_tint** - Adds or subtracts from the colour index of each pixel, leaving the background unchanged (byte)
 
-To convert an image to a .gfx file compatible with BGL, run **convert.py**, specifying the input file and output file. Only 24-bit PNGs are supported right now. Unless your graphic has lots of unique pixels, or if it needs to be scaled or rotated, it's advisable to use RLE instead.
+To convert an image to a .gfx file compatible with BGL, run **convert.py**, specifying the input file and output file. Only 24-bit PNGs are supported right now. It's best to use RLE instead, unless your graphic has lots of unique pixels, or needs to be scaled or rotated.
 
 ## bgl_draw_gfx_fast
 Identical to **bgl_draw_gfx**, but optimized for speed. Because of this, **bgl_flip** isn't supported, and there's no edge clipping, so graphics will still be visible if drawn outside the screen. However, it's at least 2x faster than **bgl_draw_gfx**!
@@ -19,10 +19,10 @@ Identical to **bgl_draw_gfx**, but optimized for speed. Because of this, **bgl_f
 Draws a *scaled* graphic to the BGL's buffer!! Uses all the same parameters as **bgl_draw_gfx**, with the addition of dwords **bgl_scale_x** and **bgl_scale_y** which allow you to scale the width and height independently. Higher values make the graphic smaller, and negative values make it bigger. The largest positive scale value is 32. It supports **bgl_opaque** and **bgl_erase**, but doesn't support **bgl_flip**. That'll probably never get added. It also uses 32-bit registers, so may not be as compatible.
 
 ## bgl_draw_gfx_rotate
-Draws a *rotated* graphic to the BGL's buffer!! Uses all the same parameters as **bgl_draw_gfx**, with the addition of the word **bgl_rotate_angle** which determines the rotation angle in degrees. Like **bgl_draw_gfx_scale**, it supports all parameters apart from **bgl_flip**. There's an odd behaviour where going from 0 to -1 results in a little jitter, but just offset your rotation value by 360, and you're all good.
+Draws a *rotated* graphic to the BGL's buffer!! Uses all the same parameters as **bgl_draw_gfx**, with the addition of the word **bgl_rotate_angle** which determines the rotation angle in degrees. Like **bgl_draw_gfx_scale**, it supports all parameters apart from **bgl_flip**. There's an odd behaviour where going from 0 to -1 results in a little jitter, but just offset your rotation value by a multiple of 360, and you're all good.
 
 ## bgl_draw_gfx_rle
-Draws an RLE encoded graphics file to the BGL's graphics buffer. Usage is identical to **bgl_draw_gfx**. To convert an image to RLE, use **convert.py** the same way as before, but use the option **--rle**. It's advisable to use a different file extension to make it easier to identify an RLE encoded file. Using RLE offers a significant reduction in file size, and is also slightly faster to draw.
+Draws an RLE encoded graphics file to the BGL's graphics buffer. Usage is identical to **bgl_draw_gfx**. To convert an image to RLE, use **convert.py** the same way as before, but use the option **--rle**. It's advisable to use a different file extension (such as .rle) to make it easier to identify an RLE encoded file. Using RLE offers a significant reduction in file size, but can be slower to draw.
 
 ## bgl_draw_gfx_rle_fast
 Identical to **bgl_draw_gfx_rle**, but removes **bgl_flip** and skips all the edge checks to increase speed. It draws graphics... rle fast.
@@ -48,6 +48,9 @@ Draws a string to the BGL's graphics buffer using a custom graphics font. The gr
 -	**bgl_font_spacing** - How many pixels between each character. (byte)
 
 Because this subroutine uses **bgl_draw_gfx**, all the same parameters apply. For example, to set the drawing position of a string, set **bgl_x_pos** and **bgl_y_pos**.
+
+## bgl_draw_font_number
+Draws a number specified in **eax** to the BGL's graphic buffer using a custom graphics font, with leading zeroes. Use **cx** to specify how many digits to draw. It uses all the same parameters as **bgl_draw_font_string**, apart from **bgl_font_string_offset**.
 
 ## bgl_pseudo_fade
 Slowly reveals the contents of the BGL's graphics buffer in vertical strips, going from left to right, back to the left again. Use this before **bgl_write_buffer** so the screen doesn't contain the same as the buffer!
@@ -94,7 +97,7 @@ Gets the BGL's graphical capabilities ready for use by setting the graphics mode
 ## bgl_write_buffer
 Writes the content of the BGL's graphics buffer to the screen.
 ## bgl_write_buffer_fast
-Same as **bgl_write_buffer**, but uses a different method for improved performance.
+Same as **bgl_write_buffer**, but uses a different method that significantly improves performance. However, it can interfere with the BGL's key handler.
 ## bgl_flood_fill
 Fills the entirety of the BGL's graphics buffer with a colour specified by **al**. Useful as a "clear screen" command for clearing up previously drawn graphics. Specify the start offset using **di**, and the end offset using **cx**.
 ## bgl_flood_fill_fast
@@ -119,3 +122,7 @@ Puts the current VGA colour palette into the VGA's temporary storage. This is re
 Restores the colours from the VGA's temporary storage back into the current palette.
 ## bgl_intro
 Draws a full-screen RLE-encoded graphic to the buffer, fades in, waits for a few frames, and fades out again. This can be used as an "intro" to your game or program. Specify the offset for the graphic using **bgl_buffer_offset**. BGL has its own funny intro graphic which can be used!
+## bgl_get_sine
+Finds the sine of value **ax** using a lookup table, and puts the result into **ax**.
+## bgl_get_cosine
+Finds the cosine of value **ax** using a lookup table, and puts the result into **ax**.
