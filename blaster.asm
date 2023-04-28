@@ -43,8 +43,32 @@ blaster_mix_buffer times blaster_mix_buffer_size db 0
 blaster_mix_sample_offset times blaster_mix_voices dw 0
 blaster_mix_sample_position times blaster_mix_voices dw 0
 blaster_mix_sample_length times blaster_mix_voices dw 0
+blaster_mix_voice_loops times blaster_mix_voices dw 0 ; how many times has a voice looped? (not used internally, but for the programmer's use)
 blaster_mix_sample_playing db 0 ; bunch of bit states. because it's a byte, it allows for up to 8 voices
 blaster_mix_sample_looping db 0 ; same goes for this
+
+blaster_mix_retrace:
+	push ax
+	push dx
+	
+.wait_for:
+	mov dx,3dah
+	in al,dx
+	test al,8
+	je .wait_for
+	
+.wait_after:
+	in al,dx
+	test al,8
+	jne .wait_after
+	
+	call blaster_mix_calculate
+	call blaster_program_dma
+	call blaster_start_playback
+	
+	pop dx
+	pop ax
+	ret
 
 blaster_mix_play_sample: ; al = voice number, ah = looping (0 or 1), si = sample, cx = length
 	push bx
@@ -53,6 +77,7 @@ blaster_mix_play_sample: ; al = voice number, ah = looping (0 or 1), si = sample
 	mov word [blaster_mix_sample_offset+bx],si
 	mov word [blaster_mix_sample_position+bx],0
 	mov word [blaster_mix_sample_length+bx],cx
+	mov word [blaster_mix_voice_loops+bx],0
 	mov cl,al
 	mov al,1
 	shl al,cl
@@ -117,6 +142,7 @@ blaster_mix_calculate:
 	test byte [blaster_mix_sample_looping],al ; this is sample set to loop?
 	jz .not_looping
 	mov word [blaster_mix_sample_position+bx],0 ; sample is looping, get it back to the beginning!
+	inc byte [blaster_mix_voice_loops+bx]
 	jmp .voice_end
 	
 .not_looping: ; not looping, keep the sample at the end
