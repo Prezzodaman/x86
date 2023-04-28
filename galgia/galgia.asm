@@ -6,8 +6,13 @@ blaster_buffer_size equ blaster_mix_buffer_size
 
 	org 100h
 	
+blaster_set_sample_rate 11025
+	
+	call blaster_init
 	call bgl_init
 	mov word [bgl_font_offset],font_gfx
+	mov word [bgl_font_size],8
+	mov word [bgl_font_spacing],8
 	call stars_init
 	
 	jmp game

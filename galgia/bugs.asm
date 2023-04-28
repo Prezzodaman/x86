@@ -1,25 +1,75 @@
 ; there'll be plenty of these phwwoaaaa let me tell ya
 
-bugs_add_score:
+bugs_player_loop_offset:
+	; this is a super ultra hyper mega specialized function. for certain arrays, there are 2 sets, one for each player. loops use bx as the offset for the current bug. this changes the offset of bx depending on the current player. remember to push bx before calling, and pop afterwards.
+	; told you it was specialized :P
 	cmp byte [player_current],0
-	jne .p2
-	add dword [player_1_score],bug_score
-	jmp .end
-.p2:
-	add dword [player_2_score],bug_score
+	je .end ; player 1, no need to offset the... offset
+	add bx,bug_amount*2 ; next set of bugs
 .end:
 	ret
 
+bugs_add_score:
+	push ax
+	push si
+	push cx
+
+	cmp byte [player_current],0
+	jne .p2
+	add dword [player_1_score],bug_score
+	inc byte [bugs_shot_lives]
+	cmp byte [bugs_shot_lives],bugs_shot_lives_amount
+	jne .end
+	mov byte [bugs_shot_lives],0
+	inc byte [player_1_lives]
+	mov al,2
+	mov ah,0
+	mov si,bester_sfx
+	mov cx,bester_sfx_length
+	call blaster_mix_play_sample
+	jmp .end
+.p2:
+	add dword [player_2_score],bug_score
+	inc byte [bugs_shot_lives+1]
+	cmp byte [bugs_shot_lives+1],bugs_shot_lives_amount
+	jne .end
+	mov byte [bugs_shot_lives+1],0
+	inc byte [player_2_lives]
+	mov al,2
+	mov ah,0
+	mov si,bester_sfx
+	mov cx,bester_sfx_length
+	call blaster_mix_play_sample
+.end:
+
+	pop cx
+	pop si
+	pop ax
+	ret
+
 bugs_init: ; m8
+	mov byte [bugs_drawn],0
+	mov byte [bug_x_offset],0
+	mov byte [bug_x_add],0
+	mov byte [bug_x_timer],0
+	mov byte [bugs_shot],0
+	mov byte [bug_flying_delay],0
+	mov byte [bug_bomb_delay],0
+
 	xor bx,bx
 	xor cx,cx ; x offset
 	xor dx,dx ; y offset
 .loop:
+	push bx
+	call bugs_player_loop_offset
 	mov byte [bug_active+bx],1
 	mov byte [bug_shot+bx],0
 	mov byte [bug_hits+bx],0
+	pop bx
 	mov byte [bug_flying+bx],0
 	mov word [bug_angle+bx],0
+	mov word [bug_flying_timer+bx],0
+	mov byte [bug_flying_reset+bx],0
 	
 	cmp byte [bug_type+bx],1
 	je .bugs_start_2
@@ -60,13 +110,41 @@ bugs_init: ; m8
 	add bx,2
 	cmp bx,bug_amount*2
 	jne .loop
+	
+.x_y_i:
+	xor bx,bx
+.x_y_i_loop:
+	mov ax,[bug_x+bx]
+	mov word [bug_x_start_i+bx],ax
+	mov ax,[bug_y+bx]
+	mov word [bug_y_start_i+bx],ax
+	add bx,2
+	cmp bx,bug_amount*2
+	jne .x_y_i_loop
 	ret
 
 bugs_bomb_handler:
+	cmp byte [stage_started],0
+	je .end_actual
+	cmp byte [bugs_drawn],bug_amount
+	jne .end_actual
+	cmp byte [stage_started],0
+	je .end_actual
 	inc byte [bug_bomb_delay]
-	cmp byte [bug_bomb_delay],20
+	mov ax,100
+	movzx cx,[stage] ; higher stage, more frequent bomb droppage
+	shl cx,1
+	sub ax,cx
+	call random_range
+	add ax,40
+	cmp byte [bug_bomb_delay],al
 	jne .bombs ; haven't reached delay yet, handle bombs as normal
 	mov byte [bug_bomb_delay],0
+	
+	cmp byte [ship_explosion_anim_state],ship_explosion_anim_frames ; has the ship exploded?
+	je .end_actual ; if so, don't drop a bomb
+	cmp byte [bugs_shot],bug_amount
+	je .end_actual
 	
 	movzx bx,[bug_bomb_current]
 	shl bx,1
@@ -74,21 +152,16 @@ bugs_bomb_handler:
 	jne .active_skip ; if so, try next bomb
 	mov byte [bug_bomb_active+bx],1 ; not active yet, make it
 	mov ax,bx ; ax is bomb offset, for now
-.get_bug:
-	push ax ;
-	call random ; ax will contain a random number
-	xor dx,dx
-	mov bx,bug_amount
-	div bx ; dx will contain what we want...
-	mov bx,dx
-	shl bx,1 ; word length
-	pop ax ;
 	
-	cmp word [bugs_shot],bug_amount
+	cmp byte [bugs_shot],bug_amount
 	je .bombs
-	cmp byte [bug_active+bx],0 ; make sure this bug is active first!
-	je .get_bug ; if not, try again
+	push ax ;
+	call bugs_random_offset
+	pop ax ;
+	push bx
+	call bugs_player_loop_offset
 	cmp byte [bug_shot+bx],0 ; it's active, but has it been shot?
+	pop bx
 	jne .bombs ; if so, skip to bomb handler
 	mov cx,[bug_x+bx]
 	sar cx,bug_precision
@@ -110,9 +183,28 @@ bugs_bomb_handler:
 	
 .bombs:
 	xor bx,bx ; let's get down to business
+	
+	mov ax,[ship_x]
+	mov word [bgl_collision_x2],ax
+	mov ax,[ship_y]
+	mov word [bgl_collision_y2],ax
+	mov word [bgl_collision_w2],ship_width
+	mov word [bgl_collision_h2],ship_height
 .bombs_loop:
 	cmp byte [bug_bomb_active+bx],0
 	je .end
+	
+	mov ax,[bug_bomb_x+bx]
+	mov word [bgl_collision_x1],ax
+	mov ax,[bug_bomb_y+bx]
+	mov word [bgl_collision_y1],ax
+	mov word [bgl_collision_w1],3
+	mov word [bgl_collision_h1],6
+	call bgl_collision_check
+	cmp byte [bgl_collision_flag],0
+	je .bombs_skip
+	call ship_explode
+.bombs_skip:
 	add word [bug_bomb_y+bx],bug_bomb_speed
 	cmp word [bug_bomb_y+bx],200 ; reached bottom of screen?
 	jl .end ; if not, skip
@@ -121,6 +213,24 @@ bugs_bomb_handler:
 	add bx,2
 	cmp bx,bug_bomb_amount*2
 	jne .bombs_loop
+.end_actual:
+	ret
+
+bugs_random_offset: ; get offset of a random active bug, puts it in bx
+	push ax
+	push dx
+.try_again:
+	mov ax,bug_amount
+	call random_range
+	mov bx,ax
+	shl bx,1 ; word length
+	push bx
+	call bugs_player_loop_offset
+	cmp byte [bug_active+bx],0 ; make sure this bug is active first!
+	pop bx
+	je .try_again ; if not, try again
+	pop dx
+	pop ax
 	ret
 
 bugs_bomb_draw:
@@ -142,17 +252,32 @@ bugs_bomb_draw:
 
 bugs_draw:
 	xor bx,bx
+	cmp byte [stage_started],0
+	je .end_actual
 .loop:
+	push bx
+	call bugs_player_loop_offset
 	cmp byte [bug_active+bx],0 ; is the current bug active/visible?
+	pop bx
 	je .end ; if not, skip this bug
 	
-	mov ax,[bug_x+bx]
+	push bx
+	shr bx,1
+	cmp byte [bugs_drawn],bl
+	pop bx
+	jb .end
+	
+	movsx ax,[bug_x_offset]
+    add ax,[bug_x+bx]
 	sar ax,bug_precision
 	mov word [bgl_x_pos],ax
 	mov ax,[bug_y+bx]
 	sar ax,bug_precision
 	mov word [bgl_y_pos],ax
+	push bx
+	call bugs_player_loop_offset
 	cmp byte [bug_shot+bx],0 ; current bug shot?
+	pop bx
 	jne .shot ; if so, draw explosion
 	
 	cmp byte [bug_type+bx],1
@@ -167,15 +292,29 @@ bugs_draw:
 .bug_3:
 	mov word [bgl_buffer_offset],bug_3_gfx
 .type_skip:
+	push bx
+	call bugs_player_loop_offset
 	mov al,[bug_hits+bx]
+	pop bx
 	shl al,3
 	mov byte [bgl_tint],al
-	call bgl_draw_gfx
+	cmp byte [bug_flying+bx],0
+	jne .flying
+	call bgl_draw_gfx_fast
+	jmp .end
+.flying:
+	mov ax,[bug_angle+bx]
+	add ax,360
+	mov word [bgl_rotate_angle],ax
+	call bgl_draw_gfx_rotate
 	jmp .end
 .shot:
 	add word [bgl_x_pos],5
 	add word [bgl_y_pos],4
+	push bx
+	call bugs_player_loop_offset
 	mov ax,[bug_explose_frame+bx]
+	pop bx
 	shr ax,bug_explose_speed
 	cmp ax,1
 	je .shot_2
@@ -215,33 +354,230 @@ bugs_draw:
 	jne .loop
 	
 	mov byte [bgl_tint],0
+.end_actual:
 	ret
 
 bugs_handler:
+	cmp byte [stage_started],0
+	je .end
+	cmp byte [bugs_drawn],bug_amount
+	jne .start
 	xor bx,bx
 .loop:
+	push bx
+	call bugs_player_loop_offset
 	cmp byte [bug_active+bx],0 ; don't handle a bug if it isn't active
+	pop bx
 	je .loop_end
 	; move bugs side to side
-	cmp byte [bug_flying+bx],0 ; check that bug isn't flying
-	jne .side_end ; don't do any side-related stuff
-	cmp byte [bug_shot+bx],0 ; same for if it's shot...
-	jne .side_end
-	cmp byte [bug_x_add],0 ; moving right?
-	je .side_left ; if not, move left
-	add word [bug_x+bx],bug_side_speed ; move right
-	jmp .side_end
-.side_left:
-	sub word [bug_x+bx],bug_side_speed ; move left
+	cmp byte [bug_flying+bx],0 ; is the bug flying?
+	jne .flying ; do fly things, ignore side movements
+	push bx
+	call bugs_player_loop_offset
+	cmp byte [bug_shot+bx],0 ; bug shot?
+	pop bx
+	jne .side_end ; if so, explode
+	jmp .loop_end
 .side_end:
-	cmp byte [bug_shot+bx],0 ; bug shot? (required because other checks branch here)
-	je .shot_skip ; if not, skip
-	inc byte [bug_explose_frame+bx]
-.shot_skip:
+	push bx
+	call bugs_player_loop_offset
+	inc byte [bug_explose_frame+bx] ; display explosion graphic
 	cmp byte [bug_explose_frame+bx],5<<bug_explose_speed ; last explosion frame?
-	jne .active_skip ; if not, bug is still active
+	pop bx
+	jne .loop_end ; if not, bug is still active
+	push bx
+	call bugs_player_loop_offset
 	mov byte [bug_active+bx],0 ; last frame, bug no longer active
-.active_skip:
+	pop bx
+	jmp .loop_end
+.flying:
+	push bx
+	call bugs_player_loop_offset
+	cmp byte [bug_shot+bx],0
+	pop bx
+	jne .side_end
+	cmp byte [bug_flying_reset+bx],0 ; is the bug resetting?
+	jne .resetting ; if so, don't change the angle
+	
+	mov ax,[bug_angle+bx]
+	push bx
+	mov bx,360
+	xor dx,dx
+	div bx
+	mov cx,dx
+
+	; x vel
+	
+	mov bx,cx ; so we can use it as an offset
+	shl bx,1
+	mov ax,[wave_table_deg+bx]
+	pop bx ; get back current bug offset
+	mov word [bug_x_vel+bx],ax
+	
+	; y vel
+	
+	push bx ; current bug offset
+	mov ax,cx
+	add ax,90
+	mov bx,360
+	xor dx,dx
+	div bx
+	shl dx,1 ; word length
+	mov bx,dx
+	mov ax,[wave_table_deg+bx]
+	pop bx ; get back current bug offset
+	mov word [bug_y_vel+bx],ax
+	
+	mov ax,[ship_x]
+	mov word [bgl_collision_x2],ax
+	mov ax,[ship_y]
+	mov word [bgl_collision_y2],ax
+	mov word [bgl_collision_w2],ship_width
+	mov word [bgl_collision_h2],ship_height
+	
+	mov ax,[bug_x+bx]
+	sar ax,bug_precision
+	mov word [bgl_collision_x1],ax
+	mov ax,[bug_y+bx]
+	sar ax,bug_precision
+	mov word [bgl_collision_y1],ax
+	mov word [bgl_collision_w1],bug_width
+	mov word [bgl_collision_h1],bug_height
+	call bgl_collision_check
+	cmp byte [bgl_collision_flag],0
+	je .flying_skip
+	cmp byte [ship_exploding],0
+	jne .flying_skip
+	call ship_explode
+	
+.flying_skip:
+	; rotate bug if it's too close to the left or right edge...
+	cmp word [bug_x+bx],bug_left_edge
+	jg .x_check_2
+	cmp word [bug_angle+bx],bug_down_angle ; make sure it always ends up facing down (up facing down, huhuhuhuh)
+	jg .x_check_skip
+	add word [bug_angle+bx],bug_flying_add*3 ; close to left, add
+	add word [bug_x+bx],2<<bug_precision
+	dec word [bug_flying_timer]
+	jmp .x_check_skip
+.x_check_2:
+	cmp word [bug_x+bx],bug_right_edge ; not close to the left, check the right
+	jl .x_check_skip
+	cmp word [bug_angle+bx],0-bug_down_angle
+	jl .x_check_skip
+	sub word [bug_angle+bx],bug_flying_add*3 ; close to right, subtract
+	sub word [bug_x+bx],2<<bug_precision
+	dec word [bug_flying_timer]
+.x_check_skip:
+	mov ax,[bug_x_vel+bx]
+	cmp byte [bug_type+bx],0
+	je .x_vel_skip
+	shl ax,1
+.x_vel_skip:
+	sar ax,bug_flying_speed
+	add word [bug_x+bx],ax
+	mov ax,[bug_y_vel+bx]
+	sar ax,bug_flying_speed
+	add word [bug_y+bx],ax
+	
+	mov ax,5
+	call random_range ; this is such a fun function :D
+	movzx cx,[bug_type+bx]
+	shl cx,3
+	add ax,280 ; sequence end value
+	sub ax,cx
+	movzx cx,[stage]
+	shl cx,1 ; the higher the stage, the faster bugs will start to fly
+	sub ax,cx
+	cmp word [bug_flying_timer+bx],ax ; reached end of sequence?
+	jge .flying_angle_skip ; if so, do nothing
+	inc word [bug_flying_timer+bx] ; do all the conditional angle stuff
+	mov ax,78
+	movzx cx,[bug_type+bx] ; higher bug type, less time
+	shl cx,6
+	sub ax,cx
+	cmp word [bug_flying_timer+bx],ax
+	jl .flying_angle_add
+	;cmp byte [bug_type+bx],0
+	;jne .flying_angle_skip
+	movzx cx,[bug_type+bx]
+	shl cx,5
+	mov ax,120
+	sub ax,cx
+	cmp word [bug_flying_timer+bx],ax
+	jg .flying_angle_subtract
+	jmp .flying_angle_skip
+.flying_angle_add:
+	mov ax,[bug_type+bx]
+	shl ax,1
+	add ax,bug_flying_add
+	cmp word [bug_angle_initial+bx],0 ; if angle is negative, add
+	jl .flying_angle_add2
+	sub word [bug_angle+bx],ax
+	jmp .flying_angle_skip
+.flying_angle_add2:
+	add word [bug_angle+bx],ax
+	jmp .flying_angle_skip
+.flying_angle_subtract:
+	cmp word [bug_angle_initial+bx],0 ; if angle is negative, subtract
+	jl .flying_angle_subtract2
+	cmp byte [bug_flying_loop+bx],0
+	je .flying_angle_skip
+	add word [bug_angle+bx],bug_flying_subtract
+	jmp .flying_angle_skip
+.flying_angle_subtract2:
+	sub word [bug_angle+bx],bug_flying_subtract
+.flying_angle_skip:
+	cmp word [bug_y+bx],(0-bug_height)<<bug_precision ; bug reached top of screen?
+	jg .flying_angle_skip2 ; if not, continue
+	mov byte [bug_flying_reset+bx],1 ; bug is resetting
+	mov word [bug_angle+bx],0
+	jmp .flying_angle_reset_skip
+.flying_angle_skip2:
+	cmp word [bug_y+bx],200<<bug_precision ; bug reached bottom of the screen?
+	jl .loop_end ; if not, continue
+	cmp byte [bugs_shot],bug_amount-1 ; is this the last bug?
+	je .flying_angle_reset_skip ; if so, skip the reset
+	mov byte [bug_flying_reset+bx],1 ; bug is resetting
+	mov word [bug_angle+bx],0
+.flying_angle_reset_skip:
+	mov word [bug_y+bx],(0-bug_height)<<bug_precision ; move bug to top of the screen, slightly off screen (screen genie)
+	jmp .loop_end
+.resetting:
+	mov ax,[bug_y_start_i+bx]
+	cmp word [bug_y+bx],ax ; reached initial y?
+	jl .resetting_y ; if not, do x chex and increase y
+	jmp .resetting_x ; reached initial y, continue checking for x
+.resetting_y:
+	add word [bug_y+bx],bug_flying_speed<<1
+.resetting_x:
+	movsx ax,[bug_x_offset]
+	add ax,[bug_x_start_i+bx]
+	sub ax,(1<<bug_flying_speed)
+	cmp word [bug_x+bx],ax ; bug left to the start x?
+	jl .resetting_left ; if lower, move right
+	add ax,(1<<bug_flying_speed)*2
+	cmp word [bug_x+bx],ax ; bug right to the start x?
+	jg .resetting_right ; if greater, move left
+	jmp .resetting_skip ; otherwise, reset bug
+.resetting_left:
+	add word [bug_x+bx],1<<bug_flying_speed
+	jmp .loop_end
+.resetting_right:
+	sub word [bug_x+bx],1<<bug_flying_speed
+	jmp .loop_end
+.resetting_skip:
+	mov ax,[bug_y_start_i+bx] ; do y checks again!
+	cmp word [bug_y+bx],ax
+	jl .loop_end ; haven't reached initial y, skip to end
+	mov byte [bug_flying_reset+bx],0
+	mov word [bug_flying_timer+bx],0
+	mov byte [bug_flying+bx],0
+	movsx ax,[bug_x_offset]
+	add ax,[bug_x_start_i+bx]
+	mov word [bug_x+bx],ax
+	mov ax,[bug_y_start_i+bx]
+	mov word [bug_y+bx],ax
 .loop_end: ; the sidewalk... docta. step aside
 	add bx,2
 	cmp bx,bug_amount*2
@@ -249,9 +585,49 @@ bugs_handler:
 	
 	inc byte [bug_x_timer]
 	cmp byte [bug_x_timer],50
-	jne .end
+	jne .x_offset
 	mov byte [bug_x_timer],0
 	not byte [bug_x_add]
+.x_offset:
+	cmp byte [bug_x_add],0
+	je .x_offset_subtract
+	add byte [bug_x_offset],bug_side_speed
+	jmp .flying_delay
+.x_offset_subtract:
+	sub byte [bug_x_offset],bug_side_speed
+	
+.flying_delay:
+	cmp byte [ship_explosion_anim_state],ship_explosion_anim_frames ; has the ship exploded?
+	je .end ; if so, don't fly
+	cmp byte [ship_explosion_finished],0 ; has the ship's explosion animation finished?
+	jne .end ; if so, don't fly
+	
+	cmp byte [bugs_shot],bug_amount
+	je .end
+	inc word [bug_flying_delay]
+	mov ax,200 ; random chance
+	call random_range
+	add ax,240 ; minimum value
+	cmp word [bug_flying_delay],ax ; reached maximum delay yet?
+	jb .end ; if not, do nothing
+	
+	call bugs_random_offset ; get a random bug, reset it
+	cmp byte [bug_flying+bx],0 ; make sure this bug isn't flying already
+	jne .end
+	mov word [bug_flying_delay],0
+	mov byte [bug_flying+bx],1
+	mov ax,[bug_x+bx] ; get distance of this bug's x to the screen's centre x
+	sar ax,bug_precision
+	sub ax,320/2
+	sar ax,1
+	mov word [bug_angle+bx],ax
+	mov word [bug_angle_initial+bx],ax
+	call random
+	and al,1
+	mov byte [bug_flying_loop+bx],al
+	jmp .end
+.start: ; right, from the beginning we're gonna start with the beginning
+	inc byte [bugs_drawn]
 .end:
 	ret
 
@@ -268,6 +644,13 @@ bug_y_spacing equ (3+bug_height)<<bug_precision
 bug_precision equ 4 ; always the safe bet
 bug_side_speed equ 2
 bug_score equ 100
+bug_flying_speed equ 4
+bug_flying_add equ 2
+bug_flying_subtract equ 3
+bug_left_edge equ 60<<bug_precision
+bug_right_edge equ (320-(bug_left_edge>>bug_precision)-bug_width)<<bug_precision
+bug_down_angle equ 50
+bugs_shot_lives_amount equ 100
 
 bug_bomb_amount equ 3
 bug_bomb_speed equ 3
@@ -278,27 +661,38 @@ bug_bomb_y times bug_bomb_amount dw 0
 bug_bomb_delay db 0 ; overall, not per bug
 bug_bomb_current db 0
 
+bug_flying_delay dw 0 ; also overall!
+
 bug_x_add db 0 ; adding or subtracting
 bug_x_timer db 0
+bug_x_offset db 0
 
+bug_x_start_i times bug_amount dw 0 ; for each individual bug, used for when it resets after flying
+bug_y_start_i times bug_amount dw 0
 bug_x times bug_amount dw 0
 bug_y times bug_amount dw 0
-bug_active times bug_amount dw 0
+bug_active times bug_amount*2 dw 0 ; *2, because we need states for both players
 bug_x_vel times bug_amount dw 0
 bug_y_vel times bug_amount dw 0
 bug_angle times bug_amount dw 0
+bug_angle_initial times bug_amount dw 0
 bug_flying times bug_amount dw 0
-bug_shot times bug_amount dw 0
-bug_hits times bug_amount dw 0 ; for bugs that require multiple hits
+bug_flying_timer times bug_amount dw 0 ; increases, when it reaches a certain amount, the angle stops getting added to
+bug_flying_loop times bug_amount dw 0
+bug_shot times bug_amount*2 dw 0
+bug_hits times bug_amount*2 dw 0 ; for bugs that require multiple hits
+bug_flying_reset times bug_amount dw 0 ; is it resetting after flying? (in other words, has it reached the bottom of the screen while flying)
 bug_type:
 	times bug_1_amount dw 0
 	times bug_2_amount dw 1
 	times bug_3_amount dw 2
-bugs_shot dw 0 ; per level
+bugs_shot db 0,0 ; per level (player 1 and 2)
+bugs_shot_lives db 0,0 ; increases when a bug is shot, when it reaches a certain value, reset and give the player an extra life, if the player loses his ship, this is reset
+bugs_drawn db 0 ; when the stage begins, bugs won't be handled until all of them are drawn
 	
 bug_explose_speed equ 2
 
-bug_explose_frame times bug_amount dw 0
+bug_explose_frame times bug_amount*2 dw 0
 
 bug_1_gfx: incbin "alien_1.gfx"
 bug_2_gfx: incbin "alien_2.gfx"

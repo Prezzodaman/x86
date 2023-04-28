@@ -1,3 +1,17 @@
+ship_explode:
+	mov byte [ship_exploding],1
+	mov byte [ship_explosion_anim_delay],0
+	mov byte [ship_explosion_anim_state],0
+	mov byte [ship_explosion_finished_delay],0
+	mov byte [ship_explosion_finished],0
+	mov byte [bug_bomb_active+bx],0
+	mov al,0
+	mov ah,0
+	mov si,boom_sfx
+	mov cx,boom_sfx_length
+	call blaster_mix_play_sample
+	ret
+
 ship_bullet_draw:
 	xor bx,bx
 	mov word [bgl_buffer_offset],ship_bullet_gfx
@@ -40,9 +54,17 @@ ship_bullet_handler:
 	mov cx,bx ; cx unused for now, so we're using it as temporary storage for the bullet index
 	xor bx,bx ; we're now counting bugs...
 .bug_loop:
+	push bx
+	call bugs_player_loop_offset
 	cmp byte [bug_active+bx],0
+	pop bx
 	je .bug_loop_skip
+	push bx
+	call bugs_player_loop_offset
 	cmp byte [bug_shot+bx],0
+	pop bx
+	jne .bug_loop_skip
+	cmp byte [bugs_drawn],bug_amount
 	jne .bug_loop_skip
 	mov ax,[bug_x+bx]
 	sar ax,bug_precision
@@ -55,19 +77,32 @@ ship_bullet_handler:
 	je .bug_loop_skip ; no collision
 	cmp byte [bug_type+bx],0 ; check if this bug type requires multiple hits
 	je .bug_loop_hit_skip ; one hit
+	push bx
+	call bugs_player_loop_offset
 	inc byte [bug_hits+bx]
 	cmp byte [bug_hits+bx],2 ; maximum hits?
+	pop bx
 	jne .bug_loop_bullet_reset
 	call bugs_add_score
 .bug_loop_hit_skip:
 	call bugs_add_score
+	push bx
+	call bugs_player_loop_offset
 	mov byte [bug_shot+bx],1
 	mov byte [bug_explose_frame+bx],0
-	inc word [bugs_shot]
+	pop bx
+	inc byte [bugs_shot]
+	push cx
+	mov al,1
+	mov ah,0
+	mov si,bug_sfx
+	mov cx,bug_sfx_length
+	call blaster_mix_play_sample
+	pop cx
 .bug_loop_bullet_reset:
 	push bx
 	mov bx,cx
-	mov byte [ship_bullet_moving+bx],0
+	;mov byte [ship_bullet_moving+bx],0
 	pop bx
 .bug_loop_skip:
 	add bx,2
@@ -82,6 +117,8 @@ ship_bullet_handler:
 	ret
 	
 ship_handler:
+	cmp byte [ship_exploding],0
+	jne .exploding
 .left:
 	cmp byte [bgl_key_states+4bh],0 ; left key pressed?
 	je .right ; if not, check for right key
@@ -118,9 +155,70 @@ ship_handler:
 	mov ax,[ship_y]
 	mov word [ship_bullet_y+bx],ax
 	call ship_add_shot
+	mov al,0
+	mov ah,0
+	mov si,lazer_sfx
+	mov cx,lazer_sfx_length
+	call blaster_mix_play_sample
 	jmp .end
 .shoot_shot: ; best l'bale name
 	mov byte [ship_shot],0
+	jmp .end
+.exploding:
+	inc byte [ship_explosion_finished_delay]
+	cmp byte [ship_explosion_finished_delay],100
+	jne .end
+	
+	xor bx,bx
+	; make sure no bug is flying
+.bug_loop:
+	push bx
+	call bugs_player_loop_offset
+	cmp byte [bug_active+bx],0
+	pop bx
+	je .bug_loop_skip
+	cmp byte [bug_flying+bx],0 ; skip all the checks if a bug is flying
+	jne .end
+	; bug isn't flying!
+.bug_loop_skip:
+	add bx,2
+	cmp bx,bug_amount*2
+	jne .bug_loop
+	
+	mov byte [ship_explosion_finished_delay],0
+	mov byte [ship_exploding],0
+	mov byte [ship_explosion_anim_delay],0
+	mov byte [ship_explosion_anim_state],0
+	
+	cmp byte [player_current],0
+	jne .explode_p2
+	dec byte [player_1_lives]
+	mov byte [bugs_shot_lives],0
+	jmp .alternate
+.explode_p2:
+	dec byte [player_2_lives]
+	mov byte [bugs_shot_lives+1],0
+.alternate: ; as in alter-8
+	cmp byte [player_2_mode],0 ; 2 player mode?
+	je .end ; if so, skip all the alternating code
+	cmp byte [player_current],0 ; can't use not, because other parts of the code rely on this being 0 or 1, making life easier
+	je .alternate_p2
+	mov byte [player_current],0
+	jmp .alternate_end
+.alternate_p2:
+	mov byte [player_current],1
+	cmp byte [stage+1],0 ; player 2 on first stage after alternating?
+	jne .alternate_end ; if not, skip
+	cmp byte [player_2_started],0 ; game started for player 2?
+	jne .alternate_end ; if so, skip
+	mov byte [stage_started],0 ; restart stage
+	mov byte [stage_delay],0
+	mov byte [stage_started_delay],0
+.alternate_end:
+	mov byte [ship_explosion_finished],0
+	mov byte [player_2_started],1
+	mov word [ship_x],ship_x_initial
+	mov byte [bug_flying_delay],0
 .end:
 	ret
 	
@@ -135,22 +233,86 @@ ship_add_shot:
 	ret
 	
 ship_draw:
-	mov word [bgl_buffer_offset],ship_gfx
 	mov ax,[ship_x]
 	mov word [bgl_x_pos],ax
 	mov ax,[ship_y]
 	mov word [bgl_y_pos],ax
-	call bgl_draw_gfx_fast
+	
+	cmp byte [ship_explosion_anim_state],ship_explosion_anim_frames
+	je .explosion_end
+	cmp byte [ship_exploding],0
+	jne .explosion
+	mov word [bgl_buffer_offset],ship_rle
+	call bgl_draw_gfx_rle_fast
+	jmp .end
+.explosion:
+	cmp byte [ship_explosion_anim_state],1
+	je .explosion_frame_2
+	cmp byte [ship_explosion_anim_state],2
+	je .explosion_frame_3
+	cmp byte [ship_explosion_anim_state],3
+	je .explosion_frame_4
+	cmp byte [ship_explosion_anim_state],4
+	je .explosion_frame_3
+	cmp byte [ship_explosion_anim_state],5
+	je .explosion_frame_4
+	cmp byte [ship_explosion_anim_state],6
+	je .explosion_frame_3
+	cmp byte [ship_explosion_anim_state],7
+	je .explosion_frame_2
+	mov word [bgl_buffer_offset],ship_explosion_3_rle
+	mov word [ship_explosion_offset],3
+	jmp .explosion_skip
+.explosion_frame_2: ; yes, they're out of order, no, i don't know why :P
+	mov word [bgl_buffer_offset],ship_explosion_2_rle
+	mov word [ship_explosion_offset],-3
+	jmp .explosion_skip
+.explosion_frame_3:
+	mov word [bgl_buffer_offset],ship_explosion_1_rle
+	mov word [ship_explosion_offset],-8
+	jmp .explosion_skip
+.explosion_frame_4:
+	mov word [bgl_buffer_offset],ship_explosion_4_rle
+	mov word [ship_explosion_offset],-13
+.explosion_skip:
+	mov ax,[ship_explosion_offset]
+	add word [bgl_x_pos],ax
+	add word [bgl_y_pos],ax
+	call bgl_draw_gfx_rle_fast
+	
+	inc byte [ship_explosion_anim_delay]
+	cmp byte [ship_explosion_anim_delay],4 ; speed
+	jne .end
+	mov byte [ship_explosion_anim_delay],0
+	cmp byte [ship_explosion_anim_state],ship_explosion_anim_frames
+	je .end
+	inc byte [ship_explosion_anim_state]
+	jmp .end
+.explosion_end:
+	cmp byte [ship_explosion_finished],0
+	jne .end
+	mov byte [ship_explosion_finished],1
+	mov byte [ship_explosion_finished_delay],0
+.end:
 	ret
 
-ship_gfx: incbin "ship.gfx"
+ship_rle: incbin "ship.rle"
 ship_width equ 30
 ship_height equ 29
 ship_speed equ 3
+ship_x_initial equ (320/2)-(ship_width/2)
 
-ship_x dw (320/2)-(ship_width/2)
+ship_x dw ship_x_initial
 ship_y dw 200-ship_height-16
 ship_shot db 0
+ship_exploding db 0
+ship_explosion_anim_delay db 0 ; the classics returning once again...
+ship_explosion_anim_state db 0
+ship_explosion_offset dw 0
+ship_explosion_finished db 0
+ship_explosion_finished_delay db 0
+
+ship_explosion_anim_frames equ 9
 
 ship_bullet_gfx: incbin "ship_bullet.gfx"
 ship_bullet_amount equ 6 ; how many on-screen at a given time
@@ -160,3 +322,8 @@ ship_bullet_x times ship_bullet_amount dw 0
 ship_bullet_y times ship_bullet_amount dw 0
 ship_bullet_moving times ship_bullet_amount dw 0
 ship_bullet_current db 0
+
+ship_explosion_1_rle: incbin "../cimit/explosion_1.rle"
+ship_explosion_2_rle: incbin "../cimit/explosion_2.rle"
+ship_explosion_3_rle: incbin "../cimit/explosion_3.rle"
+ship_explosion_4_rle: incbin "../cimit/explosion_4.rle"

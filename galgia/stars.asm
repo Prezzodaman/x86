@@ -43,13 +43,9 @@ stars_draw:
 	mov cx,[star_x+bx]
 	mov dx,[star_y+bx]
 	call bgl_get_x_y_offset
-	mov al,20
-	add al,[star_fast+bx]
-	add al,[star_fast+bx]
-	add al,[star_fast+bx]
-	add al,[star_fast+bx]
-	add al,[star_fast+bx]
-	add al,[star_fast+bx]
+	mov al,[star_fast+bx]
+	shl al,2
+	add al,24
 	mov byte [es:di],al
 
 	add bx,2
