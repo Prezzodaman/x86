@@ -32,7 +32,6 @@ bgl_collision_h1 dw 0
 bgl_collision_h2 dw 0
 bgl_key_states times 128 db 0
 bgl_key_handler_orig dw 0,0
-bgl_palette_segment dw 0
 bgl_y_clip db 0
 bgl_no_bounds db 0
 bgl_tint db 0
@@ -45,6 +44,7 @@ bgl_scale_width dw 0
 bgl_scale_height dw 0
 bgl_scale_precision db 16
 bgl_scale_centre db 0
+bgl_scale_centre_offset db 0
 
 bgl_rotate_angle dw 0
 bgl_rotate_angle_sin dw 0
@@ -597,11 +597,19 @@ bgl_draw_gfx_scale:
 	mov dx,[bgl_y_pos]
 	cmp byte [bgl_scale_centre],0
 	je .x_y_skip
-	mov eax,[bgl_scale_x] ; wip in pogess
-	shr eax,2
+	mov ax,[bgl_scale_width]
+	sar ax,1
+	sub cx,ax
+	mov ax,[bgl_scale_height]
+	sar ax,1
+	sub dx,ax
+	cmp byte [bgl_scale_centre_offset],0
+	je .x_y_skip
+	movzx ax,[bgl_width]
+	sar ax,1
 	add cx,ax
-	mov eax,[bgl_scale_y]
-	shr eax,2
+	movzx ax,[bgl_height]
+	sar ax,1
 	add dx,ax
 	
 .x_y_skip:
