@@ -36,16 +36,14 @@ bgl_y_clip db 0
 bgl_no_bounds db 0
 bgl_tint db 0
 
-bgl_scale_x dw 1
-bgl_scale_y dw 1
-bgl_scale_factor_width dw 0
-bgl_scale_factor_height dw 0
+bgl_scale_x dd 1
+bgl_scale_y dd 1
+bgl_scale_factor_width dd 0
+bgl_scale_factor_height dd 0
 bgl_scale_width dw 0
 bgl_scale_height dw 0
+bgl_scale_precision db 8
 bgl_scale_centre db 0
-bgl_scale_centre_offset db 0
-
-bgl_scale_precision equ 8
 
 bgl_rotate_angle dw 0
 bgl_rotate_angle_sin dw 0
@@ -88,6 +86,51 @@ bgl_get_cosine: ; value in ax, result in ax
 	mov ax,[wave_table_deg+bx]
 	pop dx
 	pop bx
+	ret
+	
+bgl_draw_gfx_full_pal:
+	push ax
+	push cx
+	push dx
+	push si
+	push di
+
+	; get palette
+	
+	mov si,[bgl_buffer_offset]
+	mov dx,3c8h ; palette write - index
+	xor al,al
+	out dx,al
+	
+	mov dx,3c9h ; palette write - data
+	mov cx,768
+.palette_loop:
+	mov al,[si]
+	out dx,al
+	inc si
+	loop .palette_loop
+	
+	; draw rle encoded image
+	
+	xor di,di
+.draw_loop_start:
+	mov ax,[si] ; get a word, with al containing the index, and ah the amount of times to draw
+.draw_loop: ; draw al ah times
+	mov byte [es:di],al
+	inc di
+	dec ah
+	cmp ah,0
+	jne .draw_loop
+	
+	add si,2
+	cmp di,64000
+	jne .draw_loop_start
+	
+	pop di
+	pop si
+	pop dx
+	pop cx
+	pop ax
 	ret
 	
 bgl_intro:
@@ -543,12 +586,7 @@ bgl_draw_gfx_scale:
 
 	pusha
 
-	cmp word [bgl_scale_x],-30
-	jl .end
-	cmp word [bgl_scale_y],-30
-	jl .end
-
-	xor dx,dx ; when dividing 16/32 bit numbers, dx is used as the "high register"
+	xor edx,edx ; when dividing 16/32 bit numbers, dx is used as the "high register"
 
 	mov bx,[bgl_buffer_offset]
 	mov al,[bx]
@@ -558,44 +596,46 @@ bgl_draw_gfx_scale:
 	mov al,[bx+2]
 	mov byte [bgl_transparent],al
 	
-	push bx ; bx is our temporary register here
+	push ebx ; ebx is our temporary register here
 	
 	; get scale factor based off the width
-	mov ax,[bgl_scale_x]
-	movzx bx,[bgl_width]
-	add ax,bx ; scale amount + original width
-	shl ax,bgl_scale_precision
-	movzx bx,[bgl_width]
-	div bx ; new size/original size
-	sub ax,bx
-	mov word [bgl_scale_factor_width],ax
+	mov eax,[bgl_scale_x]
+	movzx ebx,byte [bgl_width]
+	add eax,ebx ; scale amount + original width
+	mov cl,[bgl_scale_precision]
+	shl eax,cl
+	movzx ebx,byte [bgl_width]
+	div ebx ; new size/original size
+	sub eax,ebx
+	mov dword [bgl_scale_factor_width],eax
 	
-	mov ax,[bgl_scale_y]
-	movzx bx,[bgl_width]
-	add ax,bx ; scale amount + original width
-	shl ax,bgl_scale_precision
-	movzx bx,[bgl_width]
-	xor dx,dx
-	div bx ; new size/original size
-	sub ax,bx
-	mov word [bgl_scale_factor_height],ax
+	mov eax,[bgl_scale_y]
+	movzx ebx,byte [bgl_width]
+	add eax,ebx ; scale amount + original width
+	mov cl,[bgl_scale_precision]
+	shl eax,cl
+	movzx ebx,byte [bgl_width]
+	xor edx,edx
+	div ebx ; new size/original size
+	sub eax,ebx
+	mov dword [bgl_scale_factor_height],eax
 
 	; get width and height
-	xor bx,bx
-	mov bx,[bgl_scale_factor_width]
-	movzx ax,[bgl_width]
-	shl ax,bgl_scale_precision
-	xor dx,dx
-	div bx
+	xor ebx,ebx
+	mov ebx,[bgl_scale_factor_width]
+	movzx eax,byte [bgl_width]
+	shl eax,cl
+	xor edx,edx
+	div ebx
 	mov word [bgl_scale_width],ax
-	movzx ax,[bgl_height]
-	shl ax,bgl_scale_precision
-	xor dx,dx
-	mov bx,[bgl_scale_factor_height]
-	div bx
+	movzx eax,byte [bgl_height]
+	shl eax,cl
+	xor edx,edx
+	mov ebx,[bgl_scale_factor_height]
+	div ebx
 	mov word [bgl_scale_height],ax
 	
-	pop bx
+	pop ebx
 
 	mov cx,[bgl_x_pos]
 	mov dx,[bgl_y_pos]
@@ -607,8 +647,6 @@ bgl_draw_gfx_scale:
 	mov ax,[bgl_scale_height]
 	sar ax,1
 	sub dx,ax
-	cmp byte [bgl_scale_centre_offset],0
-	je .x_y_skip
 	movzx ax,[bgl_width]
 	sar ax,1
 	add cx,ax
@@ -622,31 +660,35 @@ bgl_draw_gfx_scale:
 	xor cx,cx
 	xor dx,dx
 .loop:
-	push bx
-	push cx
-	push dx
+	push ebx
+	push ecx
+	push edx
 	
 	
-	mov ax,cx
-	xor dx,dx
-	mov bx,[bgl_scale_factor_width]
-	mul bx
-	shr ax,bgl_scale_precision
+	movzx eax,cx
+	xor edx,edx
+	mov ebx,[bgl_scale_factor_width]
+	mul ebx
+	mov cl,[bgl_scale_precision]
+	shr eax,cl
 	mov cx,ax
 	
-	pop dx
-	push dx
-	mov ax,dx
-	mov bx,[bgl_scale_factor_height]
-	mul bx
-	shr ax,bgl_scale_precision
+	pop edx
+	push edx
+	movzx eax,dx
+	mov ebx,[bgl_scale_factor_height]
+	mul ebx
+	push ecx
+	mov cl,[bgl_scale_precision]
+	shr eax,cl
 	mov dx,ax
+	pop ecx
 	
 	call bgl_get_gfx_pixel
 	
-	pop dx
-	pop cx
-	pop bx
+	pop edx
+	pop ecx
+	pop ebx
 	
 	cmp byte [bgl_no_bounds],0
 	jne .bounds_skip
@@ -654,9 +696,9 @@ bgl_draw_gfx_scale:
 	push ax
 	mov ax,[bgl_x_pos]
 	add ax,cx
-	cmp ax,320
+	cmp ax,319
 	pop ax
-	jge .skip
+	jg .skip
 	push ax
 	mov ax,[bgl_x_pos]
 	add ax,dx
@@ -669,7 +711,7 @@ bgl_draw_gfx_scale:
 	add ax,dx
 	cmp ax,200
 	pop ax
-	jge .skip
+	jg .skip
 	push ax
 	mov ax,[bgl_y_pos]
 	add ax,dx
