@@ -33,6 +33,9 @@ Draws a full-screen graphics file to the BGL's graphics buffer. The only require
 ## bgl_draw_full_gfx_rle
 Draws an RLE encoded full-screen graphics file to the BGL's graphics buffer. Usage is identical to **bgl_draw_full_gfx**, only this time, you can actually fit backgrounds in a .com file, making this the preferred option for drawing backgrounds.
 
+## bgl_draw_full_gfx_pal
+Draws an RLE encoded full-screen graphics file to the BGL's graphics buffer, using a different format that contains its own palette. This replaces the existing palette, but as a result, provides a much higher colour depth.
+
 ## bgl_get_gfx_pixel
 Gets the value of a graphic's pixel at location **cx**, **dx**, and puts the result into **al**. The graphic offset is decided by **bgl_buffer_offset**.
 
