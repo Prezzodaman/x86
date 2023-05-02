@@ -88,7 +88,7 @@ bgl_get_cosine: ; value in ax, result in ax
 	pop bx
 	ret
 	
-bgl_draw_gfx_full_pal:
+bgl_draw_full_gfx_pal:
 	push ax
 	push cx
 	push dx
