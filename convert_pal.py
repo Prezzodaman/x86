@@ -26,9 +26,9 @@ if len(sys.argv)>2:
                 file_finished.append(palette[a][2]>>2)
                 palette_reduced_tuple.append((palette[a][0],palette[a][1],palette[a][2]))
             for a in range(0,2):
-                file_finished.append(255)
-                file_finished.append(255)
-                file_finished.append(255)
+                file_finished.append(63)
+                file_finished.append(63)
+                file_finished.append(63)
             palette_image=Image.new("P",(1,1))
             palette_image.putpalette(palette_reduced)
             image=image.quantize(palette=palette_image,dither=Image.Dither.NONE)

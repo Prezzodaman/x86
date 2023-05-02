@@ -116,12 +116,15 @@ bgl_draw_full_gfx_pal:
 .draw_loop_start:
 	mov ax,[si] ; get a word, with al containing the index, and ah the amount of times to draw
 .draw_loop: ; draw al ah times
+	cmp ah,0
+	je .draw_end
 	mov byte [es:di],al
 	inc di
 	dec ah
 	cmp ah,0
 	jne .draw_loop
 	
+.draw_end:
 	add si,2
 	cmp di,64000
 	jne .draw_loop_start
