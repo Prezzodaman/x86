@@ -4,6 +4,8 @@
 
 ; important: sounds must be included at the bottom of your file. your program will act weird otherwise!
 ; also, this file must be included at the top of the file, so the macros can be used
+; put your buffer size above the %include for this file, then blaster_set_sample_rate below the %include
+; if you don't set the sample rate, it'll sound very flatulent
 	
 	jmp blaster_end
 
@@ -19,6 +21,12 @@
 	
 	pop bx
 %endmacro
+
+blaster_error db "Blastlib error:",13,10,"$"
+blaster_error_stream db "File $"
+blaster_error_stream_2 db " doesn't exist!",13,10,"$"
+blaster_error_stream_3 db "Invalid filename!",13,10,"$"
+blaster_error_access db "File access error!",13,10,"$"
 
 blaster_io equ 220h
 blaster_dma equ 1
@@ -36,16 +44,21 @@ blaster_dma_page dw 0
 blaster_dma_offset dw 0
 
 ; 4-voice sample mixing @ 11025 hz
-blaster_mix_voices_shift equ 2
+blaster_mix_buffer_multiplier equ 1
+blaster_mix_voices_shift equ 2 ; = 1<<2=4 voices
 blaster_mix_voices equ 1<<blaster_mix_voices_shift
-blaster_mix_buffer_size equ (625/4)+1 ; 625 samples between clicks at the highest vga frame rate
+blaster_mix_buffer_size equ ((625/4)*blaster_mix_buffer_multiplier)+1 ; 625 samples between clicks at the highest vga frame rate
 blaster_mix_buffer times blaster_mix_buffer_size db 0
-blaster_mix_sample_offset times blaster_mix_voices dw 0
-blaster_mix_sample_position times blaster_mix_voices dw 0
-blaster_mix_sample_length times blaster_mix_voices dw 0
-blaster_mix_voice_loops times blaster_mix_voices dw 0 ; how many times has a voice looped? (not used internally, but for the programmer's use)
+blaster_mix_sample_offset times blaster_mix_voices dd 0
+blaster_mix_sample_position times blaster_mix_voices dd 0
+blaster_mix_sample_length times blaster_mix_voices dd 0
+blaster_mix_voice_loops times blaster_mix_voices dd 0 ; how many times has a voice looped? (not used internally, but for the programmer's use)
+blaster_mix_stream_file_pointer times blaster_mix_voices dd 0
+blaster_mix_stream_file_handle times blaster_mix_voices dd 0
+blaster_mix_stream_file_buffer resb 1
 blaster_mix_sample_playing db 0 ; bunch of bit states. because it's a byte, it allows for up to 8 voices
 blaster_mix_sample_looping db 0 ; same goes for this
+blaster_mix_sample_streaming db 0
 
 blaster_mix_retrace:
 	push ax
@@ -70,42 +83,119 @@ blaster_mix_retrace:
 	pop ax
 	ret
 
-blaster_mix_play_sample: ; al = voice number, ah = looping (0 or 1), si = sample, cx = length
-	push bx
+blaster_mix_play_sample: ; al = voice number, ah = looping (0 or 1), bx = streaming, si = sample/pointer to filename, cx = length
+	push dx
+	push bx ;
 	movzx bx,al
 	shl bx,1
+	mov dx,bx ; dx is temporary storage for now...
 	mov word [blaster_mix_sample_offset+bx],si
-	mov word [blaster_mix_sample_position+bx],0
-	mov word [blaster_mix_sample_length+bx],cx
+	mov dword [blaster_mix_sample_position+bx],0
+	mov dword [blaster_mix_sample_length+bx],ecx
 	mov word [blaster_mix_voice_loops+bx],0
 	mov cl,al
 	mov al,1
 	shl al,cl
+	pop bx ; get streaming flag back
 	or byte [blaster_mix_sample_playing],al
 	
 	mov al,1
 	shl al,cl
 	cmp ah,0 ; looping?
-	jne .looping ; if so, set bit
+	jne .looping_skip ; if so, set bit
 	xor al,11111111b ; clear bit
 	and byte [blaster_mix_sample_looping],al
-	jmp .end
-.looping:
+	jmp .streaming
+.looping_skip:
 	or byte [blaster_mix_sample_looping],al
+.streaming:
+	mov al,1
+	shl al,cl
+	cmp bx,0 ; streaming?
+	jne .streaming_skip ; if so, set bit
+	xor al,11111111b ; clear bit
+	and byte [blaster_mix_sample_streaming],al
+	jmp .end
+.streaming_skip:
+	or byte [blaster_mix_sample_streaming],al
+	push dx ;
+	mov ah,3dh ; open file
+	xor al,al ; read
+	mov dx,si
+	int 21h
+	jc .error
+	pop bx ; pushed from dx, popped into bx to use as an offset
+	mov word [blaster_mix_stream_file_handle+bx],ax
+	jmp .end
+.error:
+	mov ax,3
+	int 10h
+	
+	mov ah,9
+	mov dx,blaster_error
+	int 21h
+	
+	push si
+	
+.error_file_check_loop: ; check for non-ascii characters before printing
+	mov al,[si]
+	inc si
+	cmp al,127
+	ja .error_file_checked ; non-ascii character, print different error
+	cmp al,0 ; reached end of file?
+	jne .error_file_check_loop ; if not, continue checking
+	mov dx,blaster_error_stream ; it's probably a valid string!
+	int 21h
+	
+	pop si
+	
+	mov ah,2
+	mov dl,34
+	int 21h
+.error_file_loop:
+	mov dl,[si]
+	inc si
+	cmp dl,0
+	je .error_file_loop_end
+	int 21h
+	jmp .error_file_loop
+	
+.error_file_loop_end:
+	mov dl,34
+	int 21h
+	
+	mov ah,9
+	mov dx,blaster_error_stream_2
+	int 21h
+	
+	mov ah,4ch
+	int 21h
+	jmp .end
+	
+.error_file_checked:
+	mov dx,blaster_error_stream_3
+	int 21h
 .end:
-	pop bx
+	;pop bx
+	pop dx
 	ret
 
 blaster_mix_calculate:
 	push ax
 	push bx
-	push cx
-	push si
+	push ecx
+	push dx
+	push esi
 	push di
 
 	; using di as a counter instead of cx, because it needs to be used as an offset
-	xor si,si ; the current sample index (source)
+	xor esi,esi ; the current sample index (source)
 	xor di,di ; the buffer index (destination)
+	
+	cmp ecx,65535 ; backwards compatibility - check if length is 16-bit
+	jbe .clear_loop ; if so, continue as normal
+	shl ecx,16 ; clear top word, in case it contains anything
+	shr ecx,16
 	
 	; clear buffer first!
 .clear_loop:
@@ -124,14 +214,52 @@ blaster_mix_calculate:
 	shl al,cl ; al will contain 1, 2, 4, 8, etc...
 	test byte [blaster_mix_sample_playing],al ; current sample playing at all?
 	jz .null_byte ; if not, add a null byte
-	mov si,[blaster_mix_sample_offset+bx]
-	add si,[blaster_mix_sample_position+bx]
-	mov al,[si]
+	mov esi,[blaster_mix_sample_offset+bx]
+	test byte [blaster_mix_sample_streaming],al ; current sample streaming?
+	jz .not_streaming ; if not, play sample normally
+	
+	push bx
+	mov ax,[blaster_mix_stream_file_handle+bx]
+	mov bx,ax
+	mov ah,3fh ; read from file
+	mov cx,1 ; one byte
+	mov dx,blaster_mix_stream_file_buffer ; buffer that's a whopping 1 byte large
+	int 21h
+	pop bx
+	
+	push bx
+	push cx
+	mov eax,[blaster_mix_sample_position+bx]
+	push eax ;;
+	mov ax,[blaster_mix_stream_file_handle+bx] ; get file handle for this sample
+	mov bx,ax ; file handle must be in bx
+	mov ah,42h ; move file pointer
+	xor al,al ; move it from start of the file
+	pop ecx ;; ; offset msb
+	mov edx,ecx ; offset lsb
+	shr ecx,16
+	int 21h
+	jc .error
+	
+	mov ah,3fh ; read from file
+	mov cx,1 ; one byte
+	mov dx,blaster_mix_stream_file_buffer ; buffer that's a whopping 1 byte large
+	int 21h
+	mov al,[blaster_mix_stream_file_buffer]
+	
+	pop cx
+	pop bx
+	
+	jmp .streaming_skip
+.not_streaming:
+	add esi,[blaster_mix_sample_position+bx] ; get offset of sample into si
+	mov al,[esi] ; get sample value from offset si
+.streaming_skip:
 	shr al,blaster_mix_voices_shift ; divide by the amount of voices
 	add byte [blaster_mix_buffer+di],al
-	mov ax,[blaster_mix_sample_length+bx]
-	inc word [blaster_mix_sample_position+bx] ; go to next byte in the sample!
-	cmp word [blaster_mix_sample_position+bx],ax ; reached end of sample?
+	mov eax,[blaster_mix_sample_length+bx]
+	inc dword [blaster_mix_sample_position+bx] ; go to next byte in the sample!
+	cmp dword [blaster_mix_sample_position+bx],eax ; reached end of sample?
 	jb .voice_end ; if not, skip
 	; reached end of sample, but are we looping?
 	
@@ -141,7 +269,7 @@ blaster_mix_calculate:
 	shl al,cl
 	test byte [blaster_mix_sample_looping],al ; this is sample set to loop?
 	jz .not_looping
-	mov word [blaster_mix_sample_position+bx],0 ; sample is looping, get it back to the beginning!
+	mov dword [blaster_mix_sample_position+bx],0 ; sample is looping, get it back to the beginning!
 	inc byte [blaster_mix_voice_loops+bx]
 	jmp .voice_end
 	
@@ -155,8 +283,8 @@ blaster_mix_calculate:
 .null_byte:
 	add byte [blaster_mix_buffer+di],128>>blaster_mix_voices_shift
 .voice_end:
-	add bx,2 ; next voice
-	cmp bx,blaster_mix_voices*2
+	add bx,4 ; next voice (4 because dword)
+	cmp bx,blaster_mix_voices*4
 	jb .voice_loop ; haven't reached the last voice yet...
 	inc di ; reached last voice, go to next byte in buffer
 	cmp di,blaster_mix_buffer_size
@@ -167,10 +295,25 @@ blaster_mix_calculate:
 	mov si,blaster_mix_buffer
 	mov cx,blaster_mix_buffer_size
 	call blaster_fill_buffer
+	jmp .end
 	
+.error:
+	mov ax,3
+	int 10h
+	
+	mov ah,9
+	mov dx,blaster_error
+	int 21h
+	mov dx,blaster_error_access
+	int 21h
+	
+	mov ah,4ch
+	int 21h
+.end:
 	pop di
-	pop si
-	pop cx
+	pop esi
+	pop dx
+	pop ecx
 	pop bx
 	pop ax
 	ret
