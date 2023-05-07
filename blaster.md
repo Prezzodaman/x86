@@ -18,6 +18,17 @@ Plays a sample using the mix buffer, where **al** is the voice number (0-3), **a
 ## blaster_mix_stop_sample
 Stops voice number **al** from playing in the mix buffer.
 
+## blaster_set_sample_rate
+A *macro* that sets the sample rate of the Sound Blaster. If using 4 voice playback, this has to be 11025Hz. To use it, simply put ```blaster_set_sample_rate <rate>```
+
+## blaster_buffer_size
+A *constant* that specifies the size of the Sound Blaster's buffer in bytes. Be sure to put this above the %include! It's used as follows:
+```
+%include "blaster.asm"
+blaster_buffer_size equ 14000
+```
+If using 4 voice playback, set it to **blaster_mix_buffer_size** instead.
+
 # Nitty Gritty Functions
 
 ## blaster_read_dsp
