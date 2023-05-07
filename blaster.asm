@@ -24,7 +24,7 @@
 
 blaster_error db "Blastlib error:",13,10,"$"
 blaster_error_stream db "File $"
-blaster_error_stream_2 db " doesn't exist!",13,10,"$"
+blaster_error_stream_2 db " doesn't exist, or already open!",13,10,"$"
 blaster_error_stream_3 db "Invalid filename!",13,10,"$"
 blaster_error_access db "File access error!",13,10,"$"
 
@@ -48,14 +48,15 @@ blaster_mix_buffer_multiplier equ 1
 blaster_mix_voices_shift equ 2 ; = 1<<2=4 voices
 blaster_mix_voices equ 1<<blaster_mix_voices_shift
 blaster_mix_buffer_size equ ((625/4)*blaster_mix_buffer_multiplier)+1 ; 625 samples between clicks at the highest vga frame rate
-blaster_mix_buffer times blaster_mix_buffer_size db 0
-blaster_mix_sample_offset times blaster_mix_voices dd 0
-blaster_mix_sample_position times blaster_mix_voices dd 0
-blaster_mix_sample_length times blaster_mix_voices dd 0
-blaster_mix_voice_loops times blaster_mix_voices dd 0 ; how many times has a voice looped? (not used internally, but for the programmer's use)
-blaster_mix_stream_file_pointer times blaster_mix_voices dd 0
-blaster_mix_stream_file_handle times blaster_mix_voices dd 0
-blaster_mix_stream_file_buffer resb 1
+blaster_mix_buffer resb blaster_mix_buffer_size
+blaster_mix_sample_offset resd blaster_mix_voices
+blaster_mix_sample_position resd blaster_mix_voices
+blaster_mix_sample_length resd blaster_mix_voices
+blaster_mix_sample_byte resb blaster_mix_voices ; the value of the current byte of each sample (for the programmer's use)
+blaster_mix_voice_loops resd blaster_mix_voices ; how many times has a voice looped? (not used internally, but for the programmer's use)
+blaster_mix_stream_file_pointer resd blaster_mix_voices
+blaster_mix_stream_file_handle resd blaster_mix_voices
+blaster_mix_stream_file_buffer resb blaster_mix_buffer_size
 blaster_mix_sample_playing db 0 ; bunch of bit states. because it's a byte, it allows for up to 8 voices
 blaster_mix_sample_looping db 0 ; same goes for this
 blaster_mix_sample_streaming db 0
@@ -83,11 +84,26 @@ blaster_mix_retrace:
 	pop ax
 	ret
 
+blaster_mix_stop_sample: ; al = voice number
+	push cx
+	mov cl,al
+	mov al,1
+	shl al,cl
+	xor al,11111111b
+	and byte [blaster_mix_sample_playing],al
+	pop cx
+	ret
+
 blaster_mix_play_sample: ; al = voice number, ah = looping (0 or 1), bx = streaming, si = sample/pointer to filename, cx = length
 	push dx
 	push bx ;
+	cmp cx,65535 ; backwards compatibility - check if length is 16-bit
+	jbe .start ; if so, continue as normal
+	shl ecx,16 ; clear top word, in case it contains anything
+	shr ecx,16
+.start:
 	movzx bx,al
-	shl bx,1
+	shl bx,2
 	mov dx,bx ; dx is temporary storage for now...
 	mov word [blaster_mix_sample_offset+bx],si
 	mov dword [blaster_mix_sample_position+bx],0
@@ -118,7 +134,13 @@ blaster_mix_play_sample: ; al = voice number, ah = looping (0 or 1), bx = stream
 	jmp .end
 .streaming_skip:
 	or byte [blaster_mix_sample_streaming],al
+	
 	push dx ;
+	mov bx,dx
+	mov ax,[blaster_mix_stream_file_handle+bx]
+	mov ah,3eh
+	int 21h
+	
 	mov ah,3dh ; open file
 	xor al,al ; read
 	mov dx,si
@@ -192,11 +214,6 @@ blaster_mix_calculate:
 	xor esi,esi ; the current sample index (source)
 	xor di,di ; the buffer index (destination)
 	
-	cmp ecx,65535 ; backwards compatibility - check if length is 16-bit
-	jbe .clear_loop ; if so, continue as normal
-	shl ecx,16 ; clear top word, in case it contains anything
-	shr ecx,16
-	
 	; clear buffer first!
 .clear_loop:
 	mov byte [blaster_mix_buffer+di],0
@@ -209,7 +226,7 @@ blaster_mix_calculate:
 	xor bx,bx ; voice
 .voice_loop:
 	mov cl,bl
-	shr cl,1 ; word to byte
+	shr cl,2 ; dword to byte
 	mov al,1
 	shl al,cl ; al will contain 1, 2, 4, 8, etc...
 	test byte [blaster_mix_sample_playing],al ; current sample playing at all?
@@ -245,15 +262,21 @@ blaster_mix_calculate:
 	mov cx,1 ; one byte
 	mov dx,blaster_mix_stream_file_buffer ; buffer that's a whopping 1 byte large
 	int 21h
-	mov al,[blaster_mix_stream_file_buffer]
-	
 	pop cx
 	pop bx
+	
+	mov al,[blaster_mix_stream_file_buffer]
+	shr bx,2
+	mov byte [blaster_mix_sample_byte+bx],al
+	shl bx,2
 	
 	jmp .streaming_skip
 .not_streaming:
 	add esi,[blaster_mix_sample_position+bx] ; get offset of sample into si
 	mov al,[esi] ; get sample value from offset si
+	shr bx,2
+	mov byte [blaster_mix_sample_byte+bx],al
+	shl bx,2
 .streaming_skip:
 	shr al,blaster_mix_voices_shift ; divide by the amount of voices
 	add byte [blaster_mix_buffer+di],al
@@ -264,7 +287,7 @@ blaster_mix_calculate:
 	; reached end of sample, but are we looping?
 	
 	mov cl,bl ; this has to be recalculated here!
-	shr cl,1
+	shr cl,2
 	mov al,1
 	shl al,cl
 	test byte [blaster_mix_sample_looping],al ; this is sample set to loop?
@@ -282,6 +305,9 @@ blaster_mix_calculate:
 	jmp .voice_end
 .null_byte:
 	add byte [blaster_mix_buffer+di],128>>blaster_mix_voices_shift
+	shr bx,2
+	mov byte [blaster_mix_sample_byte+bx],128
+	shl bx,2
 .voice_end:
 	add bx,4 ; next voice (4 because dword)
 	cmp bx,blaster_mix_voices*4
@@ -502,6 +528,7 @@ blaster_get_buffer_offset:
 	ret
 	
 blaster_deinit:
+	push ax
 	push bx
 	
 	call blaster_disable_irq
@@ -509,7 +536,22 @@ blaster_deinit:
 	mov bl,0d3h ; dsp command d3h: turn off speaker
 	call blaster_write_dsp
 	
+	; free all opened stream files
+	mov cx,blaster_mix_voices
+	mov ah,3eh
+.loop:
+	push bx
+	mov bx,[blaster_mix_stream_file_handle+bx]
 	pop bx
+	cmp bx,0
+	je .loop_skip
+	int 21h
+.loop_skip:
+	add bx,4
+	loop .loop
+	
+	pop bx
+	pop ax
 	ret
 
 blaster_replace_isr:

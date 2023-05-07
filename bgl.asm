@@ -30,7 +30,7 @@ bgl_collision_w1 dw 0
 bgl_collision_w2 dw 0
 bgl_collision_h1 dw 0
 bgl_collision_h2 dw 0
-bgl_key_states times 128 db 0
+bgl_key_states resb 128
 bgl_key_handler_orig dw 0,0
 bgl_y_clip db 0
 bgl_no_bounds db 0
@@ -42,8 +42,10 @@ bgl_scale_factor_width dd 0
 bgl_scale_factor_height dd 0
 bgl_scale_width dw 0
 bgl_scale_height dw 0
-bgl_scale_precision db 8
 bgl_scale_centre db 0
+bgl_scale_square db 0
+
+bgl_scale_precision equ 8
 
 bgl_rotate_angle dw 0
 bgl_rotate_angle_sin dw 0
@@ -60,6 +62,21 @@ bgl_font_string_offset dw 0
 
 bgl_joypad_states_1 db 00000000b
 bgl_joypad_states_2 db 00000000b
+	
+bgl_square: ; eax = number to square, output in eax
+	push ebx
+	push ecx
+	push edx
+	mov edx,eax
+	mov ecx,eax
+	xor eax,eax
+.loop:
+	add eax,edx
+	loop .loop
+	pop edx
+	pop ecx
+	pop ebx
+	ret
 	
 bgl_get_sine: ; value in ax, result in ax
 	push bx
@@ -90,6 +107,7 @@ bgl_get_cosine: ; value in ax, result in ax
 	
 bgl_draw_full_gfx_pal:
 	push ax
+	push bx
 	push cx
 	push dx
 	push si
@@ -104,10 +122,13 @@ bgl_draw_full_gfx_pal:
 	
 	mov dx,3c9h ; palette write - data
 	mov cx,768
+	mov bx,64000
 .palette_loop:
 	mov al,[si]
+	mov byte [fs:bx],al
 	out dx,al
 	inc si
+	inc bx
 	loop .palette_loop
 	
 	; draw rle encoded image
@@ -133,21 +154,22 @@ bgl_draw_full_gfx_pal:
 	pop si
 	pop dx
 	pop cx
+	pop bx
 	pop ax
 	ret
 	
 bgl_intro:
 	push cx
-	call bgl_draw_full_gfx_rle
-	
+	call bgl_get_orig_palette
+	call bgl_draw_full_gfx_pal
 	call bgl_write_buffer_fast
 	call bgl_fade_in
-	
 	mov cx,150
 delay:
 	call bgl_wait_retrace
 	loop delay
 	call bgl_fade_out
+	call bgl_restore_orig_palette
 	pop cx
 	ret
 	
@@ -599,14 +621,24 @@ bgl_draw_gfx_scale:
 	mov al,[bx+2]
 	mov byte [bgl_transparent],al
 	
+	cmp byte [bgl_scale_square],0
+	je .square_skip
+	mov eax,[bgl_scale_x]
+	call bgl_square
+	sar eax,bgl_scale_precision
+	mov dword [bgl_scale_x],eax
+	mov eax,[bgl_scale_y]
+	call bgl_square
+	sar eax,bgl_scale_precision
+	mov dword [bgl_scale_y],eax
+.square_skip:
 	push ebx ; ebx is our temporary register here
 	
 	; get scale factor based off the width
 	mov eax,[bgl_scale_x]
 	movzx ebx,byte [bgl_width]
 	add eax,ebx ; scale amount + original width
-	mov cl,[bgl_scale_precision]
-	shl eax,cl
+	shl eax,bgl_scale_precision
 	movzx ebx,byte [bgl_width]
 	div ebx ; new size/original size
 	sub eax,ebx
@@ -615,8 +647,7 @@ bgl_draw_gfx_scale:
 	mov eax,[bgl_scale_y]
 	movzx ebx,byte [bgl_width]
 	add eax,ebx ; scale amount + original width
-	mov cl,[bgl_scale_precision]
-	shl eax,cl
+	shl eax,bgl_scale_precision
 	movzx ebx,byte [bgl_width]
 	xor edx,edx
 	div ebx ; new size/original size
@@ -627,12 +658,12 @@ bgl_draw_gfx_scale:
 	xor ebx,ebx
 	mov ebx,[bgl_scale_factor_width]
 	movzx eax,byte [bgl_width]
-	shl eax,cl
+	shl eax,bgl_scale_precision
 	xor edx,edx
 	div ebx
 	mov word [bgl_scale_width],ax
 	movzx eax,byte [bgl_height]
-	shl eax,cl
+	shl eax,bgl_scale_precision
 	xor edx,edx
 	mov ebx,[bgl_scale_factor_height]
 	div ebx
@@ -662,6 +693,9 @@ bgl_draw_gfx_scale:
 	
 	xor cx,cx
 	xor dx,dx
+	cmp byte [bgl_flip],0
+	je .loop
+	mov cx,[bgl_scale_width]
 .loop:
 	push ebx
 	push ecx
@@ -672,8 +706,7 @@ bgl_draw_gfx_scale:
 	xor edx,edx
 	mov ebx,[bgl_scale_factor_width]
 	mul ebx
-	mov cl,[bgl_scale_precision]
-	shr eax,cl
+	shr eax,bgl_scale_precision
 	mov cx,ax
 	
 	pop edx
@@ -682,8 +715,7 @@ bgl_draw_gfx_scale:
 	mov ebx,[bgl_scale_factor_height]
 	mul ebx
 	push ecx
-	mov cl,[bgl_scale_precision]
-	shr eax,cl
+	shr eax,bgl_scale_precision
 	mov dx,ax
 	pop ecx
 	
@@ -736,9 +768,17 @@ bgl_draw_gfx_scale:
 	mov byte [es:di],al
 .skip:
 	inc di
+	cmp byte [bgl_flip],0
+	je .flip_skip
+	dec cx
+	cmp cx,0
+	ja .loop_end
+	jmp .flip_skip2
+.flip_skip:
 	inc cx
 	cmp cx,[bgl_scale_width]
 	jb .loop_end
+.flip_skip2:
 	push ax
 	push bx
 	mov ax,320
@@ -748,6 +788,10 @@ bgl_draw_gfx_scale:
 	pop bx
 	pop ax
 	xor cx,cx
+	cmp byte [bgl_flip],0
+	je .flip_skip3
+	mov cx,[bgl_scale_width]
+.flip_skip3:
 	inc dx
 	cmp dl,[bgl_scale_height]
 	jb .loop_end
@@ -755,7 +799,6 @@ bgl_draw_gfx_scale:
 .loop_end:
 	jmp .loop
 .end:
-
 	popa
 	ret
 
@@ -981,7 +1024,7 @@ bgl_draw_gfx:
 	pop ax
 	ret
 	
-bgl_draw_full_gfx: ; WARNING: this is STILL untested because a full image uses up all available space in a .com file
+bgl_draw_full_gfx:
 	push ax
 	push bx
 	push si
@@ -994,7 +1037,8 @@ bgl_draw_full_gfx: ; WARNING: this is STILL untested because a full image uses u
 	mov eax,[si] ; get source pixel
 	mov dword [es:di],eax ; move to temporary graphics buffer
 	add si,4
-	cmp si,64000
+	add di,4
+	cmp di,64000
 	jb .loop
 	
 	pop di
@@ -1465,7 +1509,7 @@ bgl_init_seg: ; yeaaah init seg?!
 	ret
 	
 bgl_allocate_com:
-	mov ax, word [2] ; psp: segment of first byte beyond program (word)
+	mov ax,word [2] ; psp: segment of first byte beyond program (word)
 	sub ax,64000/16 ; amount of memory we want, in "segments" (16 bytes)
 	mov es,ax ; es is the temporary graphics buffer
 	ret
@@ -1617,7 +1661,7 @@ bgl_get_orig_palette:
 	pop ax
 	ret
 	
-bgl_temp_palette times 768 db 0
+bgl_temp_palette resb 768
 	
 bgl_fill_temp_palette:
 	push ax
@@ -1766,14 +1810,14 @@ bgl_error:
 	push bx
 	push ax
 
-	mov ax,2 ; restore graphics mode
+	mov ax,3 ; restore graphics mode
 	int 10h
 	
 	mov ah,9
 	mov dx,bgl_error_message
 	int 21h
 	
-	mov cl,0
+	xor cl,cl
 	
 .register_loop:
 	mov ah,2
@@ -1949,7 +1993,7 @@ bgl_draw_font_string:
 bgl_reset:
 	push ax
 	call bgl_restore_orig_key_handler
-	mov ax,2 ; restore graphics mode
+	mov ax,3 ; restore graphics mode
 	int 10h
 	pop ax
 	ret
