@@ -16,10 +16,10 @@ To convert an image to a .gfx file compatible with BGL, run **convert.py**, spec
 Identical to **bgl_draw_gfx**, but optimized for speed. Because of this, **bgl_flip** isn't supported, and there's no edge clipping, so graphics will still be visible if drawn outside the screen. However, it's at least 2x faster than **bgl_draw_gfx**!
 
 ## bgl_draw_gfx_scale
-Draws a *scaled* graphic to the BGL's buffer!! Uses all the same parameters as **bgl_draw_gfx**, with the addition of dwords **bgl_scale_x** and **bgl_scale_y** which allow you to scale the width and height independently. Higher values make the graphic smaller, and negative values make it bigger. The largest positive scale value is 32. To scale from the centre point instead of the top-left corner, set **bgl_scale_centre** to 1. To offset the graphic so it starts drawing start from top-left corner, set **bgl_scale_centre_offset** to 1. It supports **bgl_opaque** and **bgl_erase**, but doesn't support **bgl_flip**. That'll probably never get added.
+Draws a *scaled* graphic to the BGL's buffer!! Uses all the same parameters as **bgl_draw_gfx**, with the addition of dwords **bgl_scale_x** and **bgl_scale_y** which allow you to scale the width and height independently. Higher values make the graphic smaller, and negative values make it bigger. The largest positive scale value is 32. To scale from the centre point instead of the top-left corner, set **bgl_scale_centre** to 1. To make the scaling linear, set **bgl_scale_square** to 1; this is optional to maintain backwards compatibility.
 
 ## bgl_draw_gfx_rotate
-Draws a *rotated* graphic to the BGL's buffer!! Uses all the same parameters as **bgl_draw_gfx**, with the addition of the word **bgl_rotate_angle** which determines the rotation angle in degrees. Like **bgl_draw_gfx_scale**, it supports all parameters apart from **bgl_flip**. There's an odd behaviour where going from 0 to -1 results in a little jitter, but just offset your rotation value by a multiple of 360, and you're all good.
+Draws a *rotated* graphic to the BGL's buffer!! Uses all the same parameters as **bgl_draw_gfx**, with the addition of the word **bgl_rotate_angle** which determines the rotation angle in degrees. It supports all parameters apart from **bgl_flip**. There's an odd behaviour where going from 0 to -1 results in a little jitter, but just offset your rotation value by a multiple of 360, and you're all good.
 
 ## bgl_draw_gfx_rle
 Draws an RLE encoded graphics file to the BGL's graphics buffer. Usage is identical to **bgl_draw_gfx**. To convert an image to RLE, use **convert.py** the same way as before, but use the option **--rle**. It's advisable to use a different file extension (such as .rle) to make it easier to identify an RLE encoded file. Using RLE offers a significant reduction in file size, but can be slower to draw.
@@ -129,3 +129,5 @@ Draws a full-screen RLE-encoded graphic to the buffer, fades in, waits for a few
 Finds the sine of value **ax** using a lookup table, and puts the result into **ax**.
 ## bgl_get_cosine
 Finds the cosine of value **ax** using a lookup table, and puts the result into **ax**.
+## bgl_square
+Finds the square of value **eax**, and puts the result into **eax**. Used internally for **bgl_draw_gfx_scale**, but can be used elsewhere!
