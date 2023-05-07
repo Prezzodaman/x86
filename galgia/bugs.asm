@@ -3,6 +3,8 @@
 bugs_player_loop_offset:
 	; this is a super ultra hyper mega specialized function. for certain arrays, there are 2 sets, one for each player. loops use bx as the offset for the current bug. this changes the offset of bx depending on the current player. remember to push bx before calling, and pop afterwards.
 	; told you it was specialized :P
+	cmp byte [boss],0 ; use the same bugs if it's a boss level
+	jne .end
 	cmp byte [player_current],0
 	je .end ; player 1, no need to offset the... offset
 	add bx,bug_amount*2 ; next set of bugs
@@ -13,48 +15,68 @@ bugs_add_score:
 	push ax
 	push si
 	push cx
+	push bx
 
-	cmp byte [player_current],0
-	jne .p2
-	add dword [player_1_score],bug_score
-	inc byte [bugs_shot_lives]
-	cmp byte [bugs_shot_lives],bugs_shot_lives_amount
+	movzx bx,[player_current]
+	shl bx,2
+	add dword [player_score+bx],bug_score
+	shr bx,2
+	inc byte [bugs_shot_lives+bx]
+	cmp byte [bugs_shot_lives+bx],bugs_shot_lives_amount
 	jne .end
-	mov byte [bugs_shot_lives],0
-	inc byte [player_1_lives]
-	mov al,2
+	mov byte [bugs_shot_lives+bx],0
+	inc byte [player_lives+bx]
+	push bx
+	xor bx,bx
+	mov al,0
 	mov ah,0
 	mov si,bester_sfx
 	mov cx,bester_sfx_length
 	call blaster_mix_play_sample
-	jmp .end
-.p2:
-	add dword [player_2_score],bug_score
-	inc byte [bugs_shot_lives+1]
-	cmp byte [bugs_shot_lives+1],bugs_shot_lives_amount
-	jne .end
-	mov byte [bugs_shot_lives+1],0
-	inc byte [player_2_lives]
-	mov al,2
-	mov ah,0
-	mov si,bester_sfx
-	mov cx,bester_sfx_length
-	call blaster_mix_play_sample
+	pop bx
 .end:
-
+	pop bx
 	pop cx
 	pop si
 	pop ax
 	ret
 
 bugs_init: ; m8
+	mov word [bug_flying_delay],0
+	mov byte [bug_bomb_delay],0
+	
+	cmp byte [player_2_mode],0
+	je .bugs_drawn
+	movzx bx,[player_current]
+	cmp byte [bugs_shot+bx],0
+	jne .end_actual
+.bugs_drawn:
 	mov byte [bugs_drawn],0
+.bugs_drawn_skip:
 	mov byte [bug_x_offset],0
 	mov byte [bug_x_add],0
 	mov byte [bug_x_timer],0
-	mov byte [bugs_shot],0
-	mov byte [bug_flying_delay],0
-	mov byte [bug_bomb_delay],0
+	movzx bx,[player_current]
+	mov byte [bugs_shot+bx],0
+
+	xor bx,bx
+	mov cx,bug_1_amount
+.types_loop_1:
+	mov byte [bug_type+bx],0
+	add bx,2
+	loop .types_loop_1
+
+	mov cx,bug_2_amount
+.types_loop_2:
+	mov byte [bug_type+bx],1
+	add bx,2
+	loop .types_loop_2
+
+	mov cx,bug_3_amount
+.types_loop_3:
+	mov byte [bug_type+bx],2
+	add bx,2
+	loop .types_loop_3
 
 	xor bx,bx
 	xor cx,cx ; x offset
@@ -121,9 +143,12 @@ bugs_init: ; m8
 	add bx,2
 	cmp bx,bug_amount*2
 	jne .x_y_i_loop
+.end_actual:
 	ret
 
 bugs_bomb_handler:
+	cmp byte [boss],0
+	jne .end_actual
 	cmp byte [stage_started],0
 	je .end_actual
 	cmp byte [bugs_drawn],bug_amount
@@ -131,7 +156,7 @@ bugs_bomb_handler:
 	cmp byte [stage_started],0
 	je .end_actual
 	inc byte [bug_bomb_delay]
-	mov ax,100
+	mov ax,180
 	movzx cx,[stage] ; higher stage, more frequent bomb droppage
 	shl cx,1
 	sub ax,cx
@@ -143,7 +168,10 @@ bugs_bomb_handler:
 	
 	cmp byte [ship_explosion_anim_state],ship_explosion_anim_frames ; has the ship exploded?
 	je .end_actual ; if so, don't drop a bomb
-	cmp byte [bugs_shot],bug_amount
+	push bx
+	movzx bx,[player_current]
+	cmp byte [bugs_shot+bx],bug_amount
+	pop bx
 	je .end_actual
 	
 	movzx bx,[bug_bomb_current]
@@ -153,7 +181,10 @@ bugs_bomb_handler:
 	mov byte [bug_bomb_active+bx],1 ; not active yet, make it
 	mov ax,bx ; ax is bomb offset, for now
 	
-	cmp byte [bugs_shot],bug_amount
+	push bx
+	movzx bx,[player_current]
+	cmp byte [bugs_shot+bx],bug_amount
+	pop bx
 	je .bombs
 	push ax ;
 	call bugs_random_offset
@@ -203,6 +234,8 @@ bugs_bomb_handler:
 	call bgl_collision_check
 	cmp byte [bgl_collision_flag],0
 	je .bombs_skip
+	cmp byte [ship_exploding],0
+	jne .bombs_skip
 	call ship_explode
 .bombs_skip:
 	add word [bug_bomb_y+bx],bug_bomb_speed
@@ -248,12 +281,18 @@ bugs_bomb_draw:
 	add bx,2
 	cmp bx,bug_bomb_amount*2
 	jne .loop
+.end_actual:
 	ret
 
 bugs_draw:
-	xor bx,bx
+	;jmp .start
 	cmp byte [stage_started],0
-	je .end_actual
+	jne .start ; stage started, get to drawing
+	jmp .end
+	;cmp byte [player_2_started],0 ; stage hasn't started and it's 2 player mode, is it player 2's first time?
+	;je .end ; if so, end
+.start:
+	xor bx,bx
 .loop:
 	push bx
 	call bugs_player_loop_offset
@@ -355,13 +394,16 @@ bugs_draw:
 	
 	mov byte [bgl_tint],0
 .end_actual:
+	call bugs_bomb_draw
 	ret
 
 bugs_handler:
-	cmp byte [stage_started],0
-	je .end
+	; bugs are handled even if the stage hasn't started, so the left/right movement persists, but the flying is skipped
+	cmp byte [boss],0 ; boss level?
+	jne .start_actual ; if so, skip the bugs_drawn check
 	cmp byte [bugs_drawn],bug_amount
 	jne .start
+.start_actual: ; i'll never improve my label naming HabTis(s)
 	xor bx,bx
 .loop:
 	push bx
@@ -369,6 +411,7 @@ bugs_handler:
 	cmp byte [bug_active+bx],0 ; don't handle a bug if it isn't active
 	pop bx
 	je .loop_end
+.skip:
 	; move bugs side to side
 	cmp byte [bug_flying+bx],0 ; is the bug flying?
 	jne .flying ; do fly things, ignore side movements
@@ -451,13 +494,16 @@ bugs_handler:
 	call ship_explode
 	
 .flying_skip:
+	cmp byte [boss],0 ; boss active?
+	jne .boss ; skip all side-to-side movements and edge checks
+
 	; rotate bug if it's too close to the left or right edge...
 	cmp word [bug_x+bx],bug_left_edge
 	jg .x_check_2
 	cmp word [bug_angle+bx],bug_down_angle ; make sure it always ends up facing down (up facing down, huhuhuhuh)
 	jg .x_check_skip
-	add word [bug_angle+bx],bug_flying_add*3 ; close to left, add
-	add word [bug_x+bx],2<<bug_precision
+	add word [bug_angle+bx],bug_flying_add ; close to left, add
+	;add word [bug_x+bx],2<<bug_precision
 	dec word [bug_flying_timer]
 	jmp .x_check_skip
 .x_check_2:
@@ -465,8 +511,8 @@ bugs_handler:
 	jl .x_check_skip
 	cmp word [bug_angle+bx],0-bug_down_angle
 	jl .x_check_skip
-	sub word [bug_angle+bx],bug_flying_add*3 ; close to right, subtract
-	sub word [bug_x+bx],2<<bug_precision
+	sub word [bug_angle+bx],bug_flying_add ; close to right, subtract
+	;sub word [bug_x+bx],2<<bug_precision
 	dec word [bug_flying_timer]
 .x_check_skip:
 	mov ax,[bug_x_vel+bx]
@@ -480,19 +526,19 @@ bugs_handler:
 	sar ax,bug_flying_speed
 	add word [bug_y+bx],ax
 	
-	mov ax,5
-	call random_range ; this is such a fun function :D
-	movzx cx,[bug_type+bx]
-	shl cx,3
-	add ax,280 ; sequence end value
-	sub ax,cx
+	;mov ax,5
+	;call random_range ; this is such a fun function :D
+	;movzx cx,[bug_type+bx]
+	;shl cx,3
+	mov ax,260 ; sequence end value
+	;sub ax,cx
 	movzx cx,[stage]
 	shl cx,1 ; the higher the stage, the faster bugs will start to fly
 	sub ax,cx
 	cmp word [bug_flying_timer+bx],ax ; reached end of sequence?
 	jge .flying_angle_skip ; if so, do nothing
 	inc word [bug_flying_timer+bx] ; do all the conditional angle stuff
-	mov ax,78
+	mov ax,60
 	movzx cx,[bug_type+bx] ; higher bug type, less time
 	shl cx,6
 	sub ax,cx
@@ -536,11 +582,19 @@ bugs_handler:
 .flying_angle_skip2:
 	cmp word [bug_y+bx],200<<bug_precision ; bug reached bottom of the screen?
 	jl .loop_end ; if not, continue
-	cmp byte [bugs_shot],bug_amount-1 ; is this the last bug?
+	push bx
+	movzx bx,[player_current]
+	cmp byte [bugs_shot+bx],bug_amount-1 ; is this the last bug?
+	pop bx
 	je .flying_angle_reset_skip ; if so, skip the reset
 	mov byte [bug_flying_reset+bx],1 ; bug is resetting
 	mov word [bug_angle+bx],0
 .flying_angle_reset_skip:
+	cmp byte [ship_exploding],0 ; ship exploding?
+	je .flying_angle_reset_skip2 ; if not, skip reset
+	mov byte [bug_flying_reset+bx],1 ; bug is resetting
+	mov word [bug_angle+bx],0
+.flying_angle_reset_skip2:
 	mov word [bug_y+bx],(0-bug_height)<<bug_precision ; move bug to top of the screen, slightly off screen (screen genie)
 	jmp .loop_end
 .resetting:
@@ -583,6 +637,9 @@ bugs_handler:
 	cmp bx,bug_amount*2
 	jne .loop
 	
+	cmp byte [boss],0 ; boss level?
+	jne .end ; if so, do nothing else
+	; behaviours for a normal level
 	inc byte [bug_x_timer]
 	cmp byte [bug_x_timer],50
 	jne .x_offset
@@ -602,12 +659,20 @@ bugs_handler:
 	cmp byte [ship_explosion_finished],0 ; has the ship's explosion animation finished?
 	jne .end ; if so, don't fly
 	
-	cmp byte [bugs_shot],bug_amount
+	push bx
+	movzx bx,[player_current]
+	cmp byte [bugs_shot+bx],bug_amount
+	pop bx
+	je .end
+	cmp byte [stage_started],0
 	je .end
 	inc word [bug_flying_delay]
 	mov ax,200 ; random chance
 	call random_range
 	add ax,240 ; minimum value
+	movzx cx,[stage] ; higher stage, less time until a bug starts flying
+	shl cx,1
+	sub ax,cx
 	cmp word [bug_flying_delay],ax ; reached maximum delay yet?
 	jb .end ; if not, do nothing
 	
@@ -616,6 +681,14 @@ bugs_handler:
 	jne .end
 	mov word [bug_flying_delay],0
 	mov byte [bug_flying+bx],1
+	push bx
+	movzx bx,[player_current]
+	cmp byte [bugs_shot+bx],bug_amount-1
+	pop bx
+	jne .flying_sound_skip
+	mov al,3
+	call blaster_mix_stop_sample
+.flying_sound_skip:
 	mov ax,[bug_x+bx] ; get distance of this bug's x to the screen's centre x
 	sar ax,bug_precision
 	sub ax,320/2
@@ -625,10 +698,52 @@ bugs_handler:
 	call random
 	and al,1
 	mov byte [bug_flying_loop+bx],al
+	
+	push bx
+	push ecx
+	mov bx,1
+	mov al,2
+	mov ah,0
+	mov si,flying_sfx_name
+	mov ecx,flying_sfx_length
+	call blaster_mix_play_sample
+	pop ecx
+	pop bx
+	
 	jmp .end
 .start: ; right, from the beginning we're gonna start with the beginning
+	cmp byte [stage_started],0 ; has the stage started?
+	je .end ; if not, skip
+	cmp byte [boss],0 ; is it a boss level?
+	jne .end ; if so, don't draw any bugs, only the big bug of biggity bugginess (just like this game)
 	inc byte [bugs_drawn]
+	jmp .end
+.boss:
+	mov ax,[bug_x_vel+bx]
+	sar ax,bug_flying_speed
+	add word [bug_x+bx],ax
+	mov ax,[bug_y_vel+bx]
+	sar ax,bug_flying_speed
+	add word [bug_y+bx],ax
+	
+	mov ax,[ship_x]
+	shl ax,bug_precision
+	cmp word [bug_x+bx],ax ; bug to left of ship?
+	jg .boss_x_right ; if not, check if it's to the right
+	add word [bug_angle+bx],1
+	jmp .boss_skip
+.boss_x_right:
+	sub word [bug_angle+bx],1
+.boss_skip:
+	cmp word [bug_y+bx],200<<bug_precision
+	jl .boss_end
+	mov byte [bug_active+bx],0
+.boss_end:
+	add bx,2
+	cmp bx,bug_amount*2
+	jne .loop
 .end:
+	call bugs_bomb_handler
 	ret
 
 bug_1_amount equ 12*2 ; yes i can work out 12*2, but it's here to let me know that there'll be 2 rows of bug 1 :)
@@ -650,7 +765,7 @@ bug_flying_subtract equ 3
 bug_left_edge equ 60<<bug_precision
 bug_right_edge equ (320-(bug_left_edge>>bug_precision)-bug_width)<<bug_precision
 bug_down_angle equ 50
-bugs_shot_lives_amount equ 100
+bugs_shot_lives_amount equ 200 ; how many shot bugs until the player gets an extra life?
 
 bug_bomb_amount equ 3
 bug_bomb_speed equ 3
@@ -682,10 +797,7 @@ bug_flying_loop times bug_amount dw 0
 bug_shot times bug_amount*2 dw 0
 bug_hits times bug_amount*2 dw 0 ; for bugs that require multiple hits
 bug_flying_reset times bug_amount dw 0 ; is it resetting after flying? (in other words, has it reached the bottom of the screen while flying)
-bug_type:
-	times bug_1_amount dw 0
-	times bug_2_amount dw 1
-	times bug_3_amount dw 2
+bug_type times bug_1_amount+bug_2_amount+bug_3_amount dw 0
 bugs_shot db 0,0 ; per level (player 1 and 2)
 bugs_shot_lives db 0,0 ; increases when a bug is shot, when it reaches a certain value, reset and give the player an extra life, if the player loses his ship, this is reset
 bugs_drawn db 0 ; when the stage begins, bugs won't be handled until all of them are drawn

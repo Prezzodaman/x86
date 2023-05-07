@@ -1,22 +1,24 @@
 
 blaster_buffer_size equ blaster_mix_buffer_size
 %include "../blaster.asm"
+%include "../beeplib.asm"
 %include "../bgl.asm"
 %include "../random.asm"
 
 	org 100h
 	
-blaster_set_sample_rate 11025
-	
 	call blaster_init
+	blaster_set_sample_rate 11025
 	call bgl_init
 	mov word [bgl_font_offset],font_gfx
 	mov word [bgl_font_size],8
 	mov word [bgl_font_spacing],8
 	call stars_init
 	
-	jmp game
+	jmp title_screen
+	;jmp game
 
+%include "title.asm"
 %include "game.asm"
 %include "stars.asm"
 

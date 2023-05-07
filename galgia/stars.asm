@@ -18,6 +18,7 @@ stars_init:
 	pop bx
 	mov word [star_x+bx],ax
 	
+	call randomize
 	call random
 	push bx
 	xor dx,dx
@@ -61,6 +62,16 @@ stars_handler:
 	je .fast_skip
 	add word [star_y+bx],star_speed
 .fast_skip:
+	cmp word [star_y+bx],200
+	jl .end
+	mov word [star_y+bx],0
+	mov ax,320
+	call randomize
+	call random_range
+	mov word [star_x+bx],ax
+	and al,1
+	mov byte [star_fast+bx],al
+.end:
 	add bx,2
 	cmp bx,star_amount*2
 	jne .loop
