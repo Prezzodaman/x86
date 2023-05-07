@@ -39,6 +39,7 @@ game:
 	call game_handler
 	call boss_handler
 	
+	call bgl_escape_exit_fade
 	call bgl_joypad_handler
 	call blaster_mix_retrace
 	;call bgl_wait_retrace
@@ -46,6 +47,12 @@ game:
 	jmp .loop
 	
 players_alternate:
+	cmp byte [player_lives],0 ; first, check if either player has any lives left
+	jne .start
+	cmp byte [player_lives+1],0 ; player 1 has no lives, does player 2 have any?
+	jne .start ; if so, skip
+	jmp title_screen ; neither player has any lives
+.start:
 	cmp byte [player_current],0 ; one occasion where a not isn't the best option here!
 	je .p2
 	cmp byte [player_lives],0 ; player 1 have any lives left?
@@ -100,13 +107,6 @@ game_handler:
 	jne .game_over
 	cmp byte [stage_started],0
 	jne .skip
-	movzx bx,[player_current]
-	shl bx,2 ; dword
-	mov eax,[player_score+bx]
-	cmp dword [high_score],eax ; player's score greater than the high score?
-	jg .high_score_skip ; if not, skip
-	mov dword [high_score],eax
-.high_score_skip:
 	inc byte [stage_delay]
 	cmp byte [stage_delay],150
 	jne .skip
@@ -130,10 +130,21 @@ game_handler:
 	call boss_init
 	jmp .skip
 .boss_skip:
+	movzx bx,[player_current]
+	shl bx,1
+	cmp byte [bugs_shot+bx],0
+	jne .skip
 	call bugs_init
 .skip:
 	movzx bx,[player_current]
 	shl bx,2 ; dword
+	mov eax,[player_score+bx]
+	cmp dword [high_score],eax ; player's score greater than the high score?
+	jg .high_score_skip ; if not, skip
+	mov dword [high_score],eax
+.high_score_skip:
+	movzx bx,[player_current]
+	shl bx,1 ; word to ya mutha
 	cmp byte [bugs_shot+bx],bug_amount ; all bugs shot?
 	jne .delay_reset ; if not, skip the stage resetting routine
 	cmp byte [ship_exploding],0 ; ship exploding?
@@ -187,10 +198,10 @@ hud_draw:
 	movzx eax,byte [stage+bx]
 	inc eax
 	mov cx,1
-	cmp byte [stage+bx],9
-	jae .stage_above_10
+	cmp byte [stage+bx],boss_stage
+	jae .stage_above_this
 	jmp .stage_skip
-.stage_above_10:
+.stage_above_this:
 	inc cx
 .stage_skip:
 	call bgl_draw_font_number
@@ -229,6 +240,18 @@ hud_draw:
 	mov eax,[player_score+bx]
 .score:
 	mov cx,6
+	call bgl_draw_font_number
+	
+	mov word [bgl_x_pos],130
+	mov word [bgl_buffer_offset],bgl_get_font_offset("H",font_gfx)
+	call bgl_draw_gfx_fast
+	add word [bgl_x_pos],8
+	mov word [bgl_buffer_offset],bgl_get_font_offset("I",font_gfx)
+	call bgl_draw_gfx_fast
+	add word [bgl_x_pos],8
+	mov word [bgl_buffer_offset],bgl_get_font_offset(":",font_gfx)
+	call bgl_draw_gfx_fast
+	mov eax,[high_score]
 	call bgl_draw_font_number
 	
 	; lives

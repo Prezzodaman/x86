@@ -45,11 +45,8 @@ bugs_init: ; m8
 	mov word [bug_flying_delay],0
 	mov byte [bug_bomb_delay],0
 	
-	cmp byte [player_2_mode],0
-	je .bugs_drawn
-	movzx bx,[player_current]
-	cmp byte [bugs_shot+bx],0
-	jne .end_actual
+	;cmp byte [player_2_mode],0
+	;je .bugs_drawn
 .bugs_drawn:
 	mov byte [bugs_drawn],0
 .bugs_drawn_skip:
@@ -285,12 +282,20 @@ bugs_bomb_draw:
 	ret
 
 bugs_draw:
-	;jmp .start
 	cmp byte [stage_started],0
-	jne .start ; stage started, get to drawing
-	jmp .end
+	je .stage_not_started
+	jmp .start
+	; draw only if stage has started and 
+	;jmp .end
 	;cmp byte [player_2_started],0 ; stage hasn't started and it's 2 player mode, is it player 2's first time?
 	;je .end ; if so, end
+	;movzx bx,[player_current]
+	;cmp byte [bugs_shot+bx],0
+.stage_not_started:
+	movzx bx,[player_current]
+	shl bx,1
+	cmp byte [bugs_shot+bx],0
+	je .end_actual ; if not, only draw the bombs
 .start:
 	xor bx,bx
 .loop:
@@ -514,6 +519,19 @@ bugs_handler:
 	sub word [bug_angle+bx],bug_flying_add ; close to right, subtract
 	;sub word [bug_x+bx],2<<bug_precision
 	dec word [bug_flying_timer]
+	jmp .x_check_skip
+.x_check_3:
+	cmp word [bug_x+bx],0-bug_width ; bug way out of left bounds?
+	jg .x_check_4 ; if not, skip
+	mov byte [bug_flying_reset+bx],1 ; reset bug
+	mov word [bug_angle+bx],0
+	jmp .x_check_skip
+.x_check_4:
+	cmp word [bug_x+bx],320+bug_width ; bug way out of right bounds?
+	jl .x_check_skip ; if not, skip
+	mov byte [bug_flying_reset+bx],1 ; reset bug
+	mov word [bug_angle+bx],0
+	jmp .x_check_skip
 .x_check_skip:
 	mov ax,[bug_x_vel+bx]
 	cmp byte [bug_type+bx],0
@@ -607,7 +625,7 @@ bugs_handler:
 .resetting_x:
 	movsx ax,[bug_x_offset]
 	add ax,[bug_x_start_i+bx]
-	sub ax,(1<<bug_flying_speed)
+	sub ax,(1<<bug_flying_speed)*2
 	cmp word [bug_x+bx],ax ; bug left to the start x?
 	jl .resetting_left ; if lower, move right
 	add ax,(1<<bug_flying_speed)*2
