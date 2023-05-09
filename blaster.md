@@ -10,7 +10,7 @@ Deinitializes the Sound Blaster by turning off the speaker, restoring the interr
 Plays a sample through the Sound Blaster, with **si** containing the offset to the sound, and **cx** containing the length.
 
 ## blaster_mix_retrace
-Performs all the mixing calculations for 4 voice 11025Hz playback, plays it back, and waits for the vertical retrace. This is important, because the buffer size is linked directly to the retrace period. To just perform the calculations and nothing else, use **blaster_mix_calculate**.
+Performs all the mixing calculations for 4-voice playback, plays it back, and waits for the vertical retrace. This is important, because the buffer size is linked directly to the retrace period. To perform the calculations without waiting for the retrace, use **blaster_mix_calculate** instead.
 
 ## blaster_mix_play_sample
 Plays a sample using the mix buffer, where **al** is the voice number (0-3), **ah** decides whether the sample is looping (strictly 0 or 1!), **si** points to the sample, and **ecx** defines the length. To stream a sample, set **bx** to 1, and make **si** point to a zero-terminated filename. An error will occur if the filename's invalid. Streaming samples means that you can use a sample up to 4gb long!
@@ -19,7 +19,13 @@ Plays a sample using the mix buffer, where **al** is the voice number (0-3), **a
 Stops voice number **al** from playing in the mix buffer.
 
 ## blaster_set_sample_rate
-A *macro* that sets the sample rate of the Sound Blaster. If using 4 voice playback, this has to be 11025Hz. To use it, simply put ```blaster_set_sample_rate <rate>```
+A *macro* that sets the sample rate of the Sound Blaster. To use it, simply put ```blaster_set_sample_rate <rate>```
+
+## blaster_mix_rate_11025
+%define this at the beginning of the code to set the 4-voice sample rate to 11025Hz.
+
+## blaster_mix_rate_22050
+%define this at the beginning of the code to set the 4-voice sample rate to 22050Hz.
 
 ## blaster_buffer_size
 A *constant* that specifies the size of the Sound Blaster's buffer in bytes. Be sure to put this above the %include! It's used as follows:
@@ -27,7 +33,7 @@ A *constant* that specifies the size of the Sound Blaster's buffer in bytes. Be 
 %include "blaster.asm"
 blaster_buffer_size equ 14000
 ```
-If using 4 voice playback, set it to **blaster_mix_buffer_size** instead.
+This is only really neccessary for single sample playback. If you're using 4-voice playback, this doesn't need to be set, as the macros handle everything.
 
 # Nitty Gritty Functions
 
