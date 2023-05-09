@@ -35,7 +35,6 @@ blaster_interrupt equ 8+blaster_irq
 
 blaster_old_interrupt_offset dw 0
 blaster_old_interrupt_segment dw 0
-blaster_buffer times blaster_buffer_size db 0
 blaster_sound_offset dw 0
 blaster_sound_length dw 0
 blaster_sound_looping db 0
@@ -47,7 +46,21 @@ blaster_dma_offset dw 0
 blaster_mix_buffer_multiplier equ 1
 blaster_mix_voices_shift equ 2 ; = 1<<2=4 voices
 blaster_mix_voices equ 1<<blaster_mix_voices_shift
-blaster_mix_buffer_size equ ((625/4)*blaster_mix_buffer_multiplier)+1 ; 625 samples between clicks at the highest vga frame rate
+blaster_mix_buffer_size_base equ ((625/4)*blaster_mix_buffer_multiplier)+1 ; 625 samples between clicks at the highest vga frame rate
+%ifdef blaster_mix_rate_11025
+	%define blaster_mix_rate
+	blaster_mix_buffer_size equ blaster_mix_buffer_size_base
+%endif
+%ifdef blaster_mix_rate_22050
+	%define blaster_mix_rate
+	blaster_mix_buffer_size equ blaster_mix_buffer_size_base*2
+%endif
+%ifdef blaster_mix_rate
+	blaster_buffer_size equ blaster_mix_buffer_size
+%else ; backwards compatibility
+	blaster_mix_buffer_size equ blaster_mix_buffer_size_base+1
+	; for single sample playback, specify the buffer size yourself!
+%endif
 blaster_mix_buffer resb blaster_mix_buffer_size
 blaster_mix_sample_offset resd blaster_mix_voices
 blaster_mix_sample_position resd blaster_mix_voices
@@ -60,6 +73,8 @@ blaster_mix_stream_file_buffer resb blaster_mix_buffer_size
 blaster_mix_sample_playing db 0 ; bunch of bit states. because it's a byte, it allows for up to 8 voices
 blaster_mix_sample_looping db 0 ; same goes for this
 blaster_mix_sample_streaming db 0
+
+blaster_buffer times blaster_buffer_size db 0
 
 blaster_mix_retrace:
 	push ax
@@ -356,6 +371,13 @@ blaster_init:
 	call blaster_get_buffer_offset
 	call blaster_program_dma
 	
+%ifdef blaster_mix_rate_11025
+	blaster_set_sample_rate 11025
+%endif
+%ifdef blaster_mix_rate_22050
+	blaster_set_sample_rate 22050
+%endif
+
 	pop bx
 	ret
 
