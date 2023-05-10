@@ -4,9 +4,12 @@ title_screen:
 
 .loop:
 	mov al,0
-	call bgl_flood_fill_full
+	mov di,0
+	mov cx,64000/2
+	call bgl_flood_fill_fast
 	
 	call stars_draw
+	call stars_handler
 	
 	mov word [bgl_buffer_offset],logo_rle
 	mov ax,[logo_x]
@@ -18,7 +21,7 @@ title_screen:
 	cmp word [logo_y],20
 	je .logo_drawn
 	dec word [logo_y]
-	jmp .end
+	jmp .fade
 .logo_drawn:
 	mov word [bgl_x_pos],(8*4)-4
 	mov word [bgl_y_pos],200-(8*4)
@@ -51,25 +54,29 @@ title_screen:
 	test byte [bgl_joypad_states_1],00000001b
 	jz .down
 	mov byte [player_2_mode],0
-	jmp .end
+	jmp .fade
 .down:
 	test byte [bgl_joypad_states_1],00000010b
 	jz .start
 	mov byte [player_2_mode],1
-	jmp .end
+	jmp .fade
 .start:
 	mov al,[bgl_joypad_states_1]
 	and al,00110000b
 	cmp al,0
-	je .end
+	je .fade
 	jmp game
-.end:
-	call stars_handler
-	
+.fade:
 	call bgl_joypad_handler
-	;call blaster_mix_retrace
 	call bgl_wait_retrace
 	call bgl_write_buffer
+	call bgl_escape_exit_fade
+	
+	cmp byte [faded],0
+	jne .end
+	mov byte [faded],1
+	call bgl_fade_in
+.end:
 	jmp .loop
 	
 logo_rle: incbin "logo.rle"
@@ -82,3 +89,5 @@ title_string_1a db "PROGRAMMING AND ARTWORK BY PREZZO",0
 title_string_1b db "ORIGINAL GAME BY NAMCO",0
 title_string_2a db "1 PLAYER",0
 title_string_2b db "2 PLAYERS",0
+
+faded db 0

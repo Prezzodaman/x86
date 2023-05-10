@@ -1,19 +1,26 @@
 
-blaster_buffer_size equ blaster_mix_buffer_size
+%define blaster_mix_rate_11025
+%define blaster_buffer_size_custom
+
+font_reduction equ 66*15 ; i ran out of space, so some characters had to be removed!
+blaster_mix_buffer_base_length equ blaster_mix_18hz
+
 %include "../blaster.asm"
-%include "../beeplib.asm"
 %include "../bgl.asm"
 %include "../random.asm"
+%include "../timer.asm"
 
 	org 100h
 	
 	call blaster_init
-	blaster_set_sample_rate 11025
 	call bgl_init
-	mov word [bgl_font_offset],font_gfx
+	mov word [bgl_font_offset],font_gfx-font_reduction
 	mov word [bgl_font_size],8
 	mov word [bgl_font_spacing],8
 	call stars_init
+	
+	mov ax,blaster_interrupt_handler
+	call timer_interrupt
 	
 	jmp title_screen
 	;jmp game
@@ -23,21 +30,6 @@ blaster_buffer_size equ blaster_mix_buffer_size
 %include "stars.asm"
 
 font_gfx:
-	incbin "../bgl/c64_33.gfx"
-	incbin "../bgl/c64_34.gfx"
-	incbin "../bgl/c64_35.gfx"
-	incbin "../bgl/c64_36.gfx"
-	incbin "../bgl/c64_37.gfx"
-	incbin "../bgl/c64_38.gfx"
-	incbin "../bgl/c64_39.gfx"
-	incbin "../bgl/c64_40.gfx"
-	incbin "../bgl/c64_41.gfx"
-	incbin "../bgl/c64_42.gfx"
-	incbin "../bgl/c64_43.gfx"
-	incbin "../bgl/c64_44.gfx"
-	incbin "../bgl/c64_45.gfx"
-	incbin "../bgl/c64_46.gfx"
-	incbin "../bgl/c64_47.gfx"
 	incbin "../bgl/c64_0.gfx"
 	incbin "../bgl/c64_1.gfx"
 	incbin "../bgl/c64_2.gfx"

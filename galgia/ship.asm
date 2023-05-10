@@ -125,7 +125,7 @@ ship_bullet_handler:
 	xor bx,bx ; we're now counting bugs...
 .bug_loop:
 	cmp byte [bugs_drawn],bug_amount ; make sure all bugs are drawn before checking...
-	jne .end ; if not, skip
+	jne .bug_loop_end ; if not, skip
 	push bx
 	call bugs_player_loop_offset
 	cmp byte [bug_active+bx],0
@@ -180,6 +180,7 @@ ship_bullet_handler:
 	mov byte [bug_shot+bx],1
 	mov byte [bug_explose_frame+bx],0
 	movzx bx,[player_current]
+	shl bx,1
 	inc byte [bugs_shot+bx]
 	pop bx
 	push cx
@@ -309,15 +310,21 @@ ship_handler:
 	jmp .end
 .lives_skip:
 	mov byte [bugs_shot_lives+bx],0
+	call boss_check
 	
 	cmp byte [player_2_mode],0 ; 2 player mode?
-	je .lives_flying_delay ; if so, skip all the alternating code
+	je .lives_flying_delay ; if not, skip all the alternating code
 	call players_alternate
+	movzx bx,[player_current]
 	mov byte [stage_started],0 ; restart stage
 	mov byte [stage_delay],0
 	mov byte [stage_started_delay],0
-	
 	mov byte [player_2_started],1
+	shl bx,1
+	cmp byte [bugs_shot+bx],0 ; any bugs shot?
+	jne .lives_flying_delay ; if so, don't stop the sound effect
+	mov al,3
+	call blaster_mix_stop_sample
 .lives_flying_delay:
 	call ship_init
 	mov byte [bug_bomb_delay],0

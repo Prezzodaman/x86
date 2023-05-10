@@ -4,8 +4,8 @@ game:
 	call ship_init
 	
 	mov byte [ship_shot],1
-	mov byte [player_lives],3
-	mov byte [player_lives+1],3
+	mov byte [player_lives],4
+	mov byte [player_lives+1],4
 	mov byte [stage],0
 	mov byte [stage+1],0
 	mov byte [boss],0
@@ -22,9 +22,13 @@ game:
 	
 	mov byte [game_over],0
 	
+	call boss_check
+	
 .loop:
 	mov al,0
-	call bgl_flood_fill_full
+	mov di,0
+	mov cx,64000/2
+	call bgl_flood_fill_fast
 	
 	call stars_draw
 	call bugs_draw
@@ -41,8 +45,8 @@ game:
 	
 	call bgl_escape_exit_fade
 	call bgl_joypad_handler
-	call blaster_mix_retrace
-	;call bgl_wait_retrace
+	;call blaster_mix_retrace
+	call bgl_wait_retrace
 	call bgl_write_buffer
 	jmp .loop
 	
@@ -118,16 +122,8 @@ game_handler:
 	mov bx,0
 	call blaster_mix_play_sample
 	mov byte [stage_started],1
-	movzx bx,[player_current]
-	mov byte [boss],0
-	xor dx,dx
-	movzx ax,[stage+bx] ; "clamp" the stage
-	mov bx,boss_stage+1
-	div bx
-	cmp dx,boss_stage
-	jne .boss_skip ; if the level isn't a multiple, leave the boss flag unchanged
-	mov byte [boss],1 ; otherwise, it's a boss level
-	call boss_init
+	cmp byte [boss],0
+	je .boss_skip
 	jmp .skip
 .boss_skip:
 	movzx bx,[player_current]
@@ -158,8 +154,8 @@ game_handler:
 	mov byte [stage_started],0
 	mov byte [stage_delay],0
 	mov byte [bugs_shot+bx],0
-	mov byte [boss],0
 	inc byte [stage+bx]
+	call boss_check
 	jmp .end
 .delay_reset:
 	mov byte [stage_started_delay],0
@@ -173,13 +169,13 @@ game_handler:
 	mov byte [game_over],0
 	mov byte [stage_started],0
 	mov byte [stage_started_delay],0
-	cmp byte [boss],0
-	je .game_over_skip
-	mov byte [boss_active],0
-	jmp .end
-.game_over_skip:
 	call ship_init
 	call players_alternate
+	call boss_check
+	cmp byte [boss],0
+	je .end
+	mov byte [boss_active],0
+	jmp .end
 .end:
 	ret
 	
@@ -198,10 +194,10 @@ hud_draw:
 	movzx eax,byte [stage+bx]
 	inc eax
 	mov cx,1
-	cmp byte [stage+bx],boss_stage
-	jae .stage_above_this
+	cmp byte [stage+bx],10
+	jae .stage_above_10
 	jmp .stage_skip
-.stage_above_this:
+.stage_above_10:
 	inc cx
 .stage_skip:
 	call bgl_draw_font_number
@@ -216,21 +212,21 @@ hud_draw:
 .stage_end:	
 	mov word [bgl_x_pos],0
 	mov word [bgl_y_pos],0
-	mov ax,bgl_get_font_offset("1",font_gfx)
+	mov ax,bgl_get_font_offset("1",font_gfx)-font_reduction
 	cmp byte [player_current],0
 	je .player_skip
-	mov ax,bgl_get_font_offset("2",font_gfx)
+	mov ax,bgl_get_font_offset("2",font_gfx)-font_reduction
 .player_skip:
 	mov word [bgl_buffer_offset],ax
 	call bgl_draw_gfx_fast
 	add word [bgl_x_pos],8
-	mov word [bgl_buffer_offset],bgl_get_font_offset("U",font_gfx)
+	mov word [bgl_buffer_offset],bgl_get_font_offset("U",font_gfx)-font_reduction
 	call bgl_draw_gfx_fast
 	add word [bgl_x_pos],8
-	mov word [bgl_buffer_offset],bgl_get_font_offset("P",font_gfx)
+	mov word [bgl_buffer_offset],bgl_get_font_offset("P",font_gfx)-font_reduction
 	call bgl_draw_gfx_fast
 	add word [bgl_x_pos],8
-	mov word [bgl_buffer_offset],bgl_get_font_offset(":",font_gfx)
+	mov word [bgl_buffer_offset],bgl_get_font_offset(":",font_gfx)-font_reduction
 	call bgl_draw_gfx_fast
 	
 	mov word [bgl_x_pos],8*3

@@ -1,3 +1,30 @@
+boss_check: ; checks if this level's a boss level or not, if so, initializes the boss, otherwise, initialize bugs
+	push ax
+	push bx
+	push dx
+	movzx bx,[player_current]
+	xor dx,dx
+	movzx ax,[stage+bx] ; "clamp" the stage
+	mov bx,boss_stage+1
+	div bx
+	cmp dx,boss_stage
+	jne .not_boss ; the level isn't a multiple
+	mov byte [boss],1 ; otherwise, it's a boss level
+	call boss_init
+	jmp .end
+.not_boss:
+	mov byte [boss],0
+	movzx bx,[player_current]
+	shl bx,1
+	cmp byte [bugs_shot+bx],0 ; any bugs shot?
+	jne .end ; if so, don't initialize bugs
+	call bugs_init
+.end:
+	pop dx
+	pop bx
+	pop ax
+	ret
+
 boss_explosion_init:
 	mov ax,[boss_x]
 	add ax,[boss_x_offset]
@@ -365,7 +392,7 @@ boss_explosion_scale dd 0
 
 boss_explosion_width equ 62
 boss_explosion_height equ 63
-boss_explosion_outing_speed equ 10
+boss_explosion_outing_speed equ 16
 boss_explosion_inning_speed equ 2
 
 boss_explosion_gfx: incbin "explosion.gfx"

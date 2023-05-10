@@ -45,8 +45,8 @@ bugs_init: ; m8
 	mov word [bug_flying_delay],0
 	mov byte [bug_bomb_delay],0
 	
-	;cmp byte [player_2_mode],0
-	;je .bugs_drawn
+	cmp byte [player_2_mode],0
+	jne .bugs_drawn_skip
 .bugs_drawn:
 	mov byte [bugs_drawn],0
 .bugs_drawn_skip:
