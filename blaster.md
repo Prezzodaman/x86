@@ -30,10 +30,24 @@ A *macro* that sets the sample rate of the Sound Blaster. To use it, simply put 
 ## blaster_buffer_size
 A *constant* that specifies the size of the Sound Blaster's buffer in bytes. Be sure to put this above the %include! It's used as follows:
 ```
+%define blaster_buffer_size_custom
 %include "blaster.asm"
 blaster_buffer_size equ 14000
 ```
-This is only really neccessary for single sample playback. If you're using 4-voice playback, this doesn't need to be set, as the macros handle everything.
+This is only really neccessary for single sample playback. If you're using 4-voice playback macros, this doesn't need to be set, unless you're using the system timer.
+
+## blaster_interrupt_handler
+If you wish to use the system timer, replace the interrupt with this, and put ```%define blaster_buffer_size_custom``` above the %include.
+
+## blaster_mix_buffer_base_length
+A *constant* that defines how big the mix buffer is. This doesn't need to be changed unless you're using the system timer, in which case, a set of constants are available:
+* blaster_mix_75hz
+* blaster_mix_60hz
+* blaster_mix_30hz
+* blaster_mix_20hz
+* blaster_mix_18hz
+
+A timer library is available (timer.asm) which contains the appropriate speeds, and allows you to change the speed and replace the interrupt. Using the default timer speed (18.2Hz) will give the cleanest sounding results.
 
 # Nitty Gritty Functions
 
@@ -56,6 +70,4 @@ Starts 8-bit single cycle playback.
 Programs the Sound Blaster's DMA to use channel 1, single cycle mode.
 
 # Caveats
-Using the mix buffer relies on the vertical retrace running at the full speed. This means that if your main code slows down, you'll get stuttering. I can't think of any other way of approaching it, so that'll have to be left for now!
-
 The Sound Blaster's settings are fixed to I/O port 220h, DMA channel 1, and IRQ 7. One day, I might make a program that lets you change these settings!
