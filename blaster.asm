@@ -42,11 +42,20 @@ blaster_sound_looping db 0
 blaster_dma_page dw 0
 blaster_dma_offset dw 0
 
-; 4-voice sample mixing @ 11025 hz
+; 4-voice sample mixing
+
+blaster_mix_75hz equ 624 ; still trying to find a formula!
+blaster_mix_60hz equ 731
+blaster_mix_30hz equ 1420
+blaster_mix_20hz equ 2203
+blaster_mix_18hz equ 2414
+%ifndef blaster_buffer_size_custom
+	blaster_mix_buffer_base_length equ blaster_mix_75hz
+%endif
 blaster_mix_buffer_multiplier equ 1
 blaster_mix_voices_shift equ 2 ; = 1<<2=4 voices
 blaster_mix_voices equ 1<<blaster_mix_voices_shift
-blaster_mix_buffer_size_base equ ((625/4)*blaster_mix_buffer_multiplier)+1 ; 625 samples between clicks at the highest vga frame rate
+blaster_mix_buffer_size_base equ ((blaster_mix_buffer_base_length/4)*blaster_mix_buffer_multiplier)+1
 %ifdef blaster_mix_rate_11025
 	%define blaster_mix_rate
 	blaster_mix_buffer_size equ blaster_mix_buffer_size_base
@@ -76,6 +85,12 @@ blaster_mix_sample_streaming db 0
 
 blaster_buffer times blaster_buffer_size db 0
 
+blaster_interrupt_handler:
+	call blaster_mix_calculate
+	call blaster_program_dma
+	call blaster_start_playback
+	iret
+	
 blaster_mix_retrace:
 	push ax
 	push dx
@@ -205,12 +220,22 @@ blaster_mix_play_sample: ; al = voice number, ah = looping (0 or 1), bx = stream
 	mov dx,blaster_error_stream_2
 	int 21h
 	
+%ifdef bgl
+	call bgl_restore_key_handler
+%endif
+
 	mov ah,4ch
 	int 21h
-	jmp .end
 	
 .error_file_checked:
 	mov dx,blaster_error_stream_3
+	int 21h
+	
+%ifdef bgl
+	call bgl_restore_key_handler
+%endif
+
+	mov ah,4ch
 	int 21h
 .end:
 	;pop bx
@@ -347,6 +372,10 @@ blaster_mix_calculate:
 	int 21h
 	mov dx,blaster_error_access
 	int 21h
+	
+%ifdef bgl
+	call bgl_restore_key_handler
+%endif
 	
 	mov ah,4ch
 	int 21h

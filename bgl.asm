@@ -7,6 +7,8 @@
 	
 	jmp bgl_end
 
+%define bgl ; used in other libraries to detect!
+
 %define bgl_get_font_offset(a,b) b+(((8*8)+2)*(a-33))
 %define bgl_get_font_number_offset(a,b) b+((a+15)*((8*8)+2))
 
@@ -62,6 +64,37 @@ bgl_font_string_offset dw 0
 
 bgl_joypad_states_1 db 00000000b
 bgl_joypad_states_2 db 00000000b
+	
+%ifdef bgl_blaster
+bgl_blaster_visualize:
+	push cx
+	push dx
+	push si
+	push di
+	
+	mov cx,-24
+	mov si,blaster_mix_buffer
+.loop:
+	cmp cx,0
+	jl .skip
+	cmp cx,320
+	jge .skip
+	movzx dx,[si]
+	sub dx,28
+	call bgl_get_x_y_offset
+	mov byte [es:di],10
+.skip:
+	inc cx
+	add si,1
+	cmp si,blaster_mix_buffer+blaster_mix_buffer_size
+	jb .loop
+	
+	pop di
+	pop si
+	pop dx
+	pop cx
+	ret
+%endif
 	
 bgl_square: ; eax = number to square, output in eax
 	push ebx
@@ -609,7 +642,17 @@ bgl_draw_gfx_scale:
 	; the simplest and most functional algorithm: (used as a reference)
 	; https://www.researchgate.net/figure/Nearest-neighbour-image-scaling-algorithm_fig2_272092207
 
+	push dword [bgl_scale_x]
+	push dword [bgl_scale_y]
 	pusha
+	
+	cmp dword [bgl_scale_x],0
+	jne .start
+	cmp dword [bgl_scale_y],0
+	jne .start
+	call bgl_draw_gfx
+	jmp .end
+.start:
 
 	xor edx,edx ; when dividing 16/32 bit numbers, dx is used as the "high register"
 
@@ -800,6 +843,8 @@ bgl_draw_gfx_scale:
 	jmp .loop
 .end:
 	popa
+	pop dword [bgl_scale_y]
+	pop dword [bgl_scale_x]
 	ret
 
 bgl_get_buffer_pixel:
@@ -1888,6 +1933,7 @@ bgl_draw_font_number:
 	; eax = number
 	; cx = digits
 	push bx
+	push cx
 	push dx
 	
 	push eax
@@ -1931,6 +1977,7 @@ bgl_draw_font_number:
 	
 	pop eax ; ...eeeeEEEEEEAAAAAAAAAAXXXX
 	pop dx
+	pop cx
 	pop bx
 	ret
 	
