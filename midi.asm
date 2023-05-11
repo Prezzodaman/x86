@@ -172,6 +172,7 @@ midi_position dw 0 ; overall
 midi_speed db 0 ; specified by the user
 midi_speed_counter db 0 ; used internally for keeping time
 midi_tracks db 0 ; how many are there in the current song? (counting from 0)
+midi_track_event db 0 ; bit states, for the programmer's use
 midi_last_command resw 16
 midi_playing db 0
 midi_looping db 0
@@ -230,11 +231,18 @@ midi_interrupt:
 	mov al,[midi_speed]
 	mov byte [midi_speed_counter],al
 	
+	mov word [midi_track_event],0
 	xor bx,bx
 	; go through each track!
 .track_loop:
 	push bx
 	shl bx,1
+	
+	push bx
+	shr bx,1
+	bt word [midi_tracks_playing],bx ; current track playing?
+	pop bx
+	jnc .track_loop_end ; if not, skip
 	
 	xor cl,cl ; drum flag (for note offs)
 	mov si,[midi_track_offset+bx] ; one byte at a time
@@ -250,12 +258,6 @@ midi_interrupt:
 	jb .track_loop_note_off_skip
 	
 	call midi_setup
-	push bx
-	shr bx,1
-	dec bx
-	bt word [midi_tracks_playing],bx ; current track playing?
-	pop bx
-	jnc .track_loop_end ; if not, skip
 	sub al,10h ; change note on to note off
 	out dx,al
 	mov al,ah ; note number
@@ -272,12 +274,6 @@ midi_interrupt:
 	jne .track_loop_skip ; if not, skip
 	mov cl,1
 .track_loop_skip:
-	push bx
-	shr bx,1
-	bt word [midi_tracks_playing],bx ; current track playing?
-	pop bx
-	jnc .track_loop_end ; if not, skip
-	
 	mov al,[si] ; note on/off
 	out dx,al
 	inc si
@@ -286,6 +282,10 @@ midi_interrupt:
 	inc si
 	mov al,[si] ; velocity
 	out dx,al
+	push bx
+	shr bx,1
+	bts word [midi_track_event],bx
+	pop bx
 	
 	mov si,[midi_track_offset+bx]
 	mov ax,[si]
@@ -296,16 +296,16 @@ midi_interrupt:
 	
 	call midi_setup
 	
-	mov al,[si]
-	cmp al,note_on ; note off?
-	jb .track_loop_end ; if so, ignore drum check
-	sub al,10h ; change note on to note off
-	out dx,al
-	inc si
-	mov al,[si] ; note to turn off
-	out dx,al
-	mov al,63 ; note off velocity
-	out dx,al
+	;mov al,[si]
+	;cmp al,note_on ; note off?
+	;jb .track_loop_end ; if so, ignore drum check
+	;sub al,10h ; change note on to note off
+	;out dx,al
+	;inc si
+	;mov al,[si] ; note to turn off
+	;out dx,al
+	;mov al,63 ; note off velocity
+	;out dx,al
 	
 .track_loop_end:
 	add word [midi_track_offset+bx],3
@@ -353,18 +353,24 @@ midi_all_notes_off:
 
 	xor al,al ; channel
 .loop:
-	xor bl,bl ; note
-.note_loop:
-	call midi_note_off
-	inc bl
-	cmp bl,127
-	jne .note_loop
+	call midi_all_notes_off_channel
 	
 	inc al
 	cmp al,16
 	jne .loop
 	
 	pop bx
+	pop ax
+	ret
+
+midi_all_notes_off_channel:
+	push bx
+	xor bl,bl ; note
+.note_loop:
+	call midi_note_off
+	inc bl
+	cmp bl,127
+	jne .note_loop
 	pop ax
 	ret
 
