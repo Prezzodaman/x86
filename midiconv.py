@@ -83,17 +83,16 @@ if len(sys.argv)>2:
                     counter+=1
                 else:
                     if counter>0:
-                        commands_compressed.append([0xFF,counter])
+                        commands_compressed.append([0xFF,counter-1])
                         commands_compressed.append(set)
                         counter=0
                     elif counter>255:
-                        commands_compressed.append([0xFF,counter])
+                        commands_compressed.append([0xFF,counter-1])
                         counter=0
                     else:
                         commands_compressed.append(set)
             if counter>0:
-                commands_compressed.append([0xFF,counter])
-                commands_compressed.append(set)
+                commands_compressed.append([0xFE])
             tracks_compressed.append(commands_compressed)
             
         # check for bloated tracks

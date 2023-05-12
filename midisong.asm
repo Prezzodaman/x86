@@ -8,22 +8,6 @@
 	call timer_interrupt
 	mov ax,timer_30hz
 	call timer_speed
-
-	mov byte [midi_looping],1
-	mov byte [midi_speed],4
-	
-	mov al,0
-	mov ah,80
-	call midi_channel_change
-	mov al,1
-	mov ah,81
-	call midi_channel_change
-	mov al,2
-	mov ah,96
-	call midi_channel_change
-	mov al,3
-	mov ah,8
-	call midi_channel_change
 	
 	call testmid_play
 	;mov byte [midi_playing],0
@@ -36,7 +20,7 @@
 	mov cx,2607h
 	int 10h
 	
-	mov word [midi_tracks_playing],0000000000110001b
+	;mov word [midi_tracks_playing],0000000000110001b
 	
 q:
 	

@@ -245,13 +245,14 @@ midi_interrupt:
 	mov al,[si] ; note on/off
 	cmp al,0 ; null byte?
 	je .track_loop_end ; if so, skip everything
+	cmp al,254 ; end command?
+	je .track_loop_end_skip ; if so, do nothing
 	cmp al,255 ; wait command?
 	jne .no_wait ; if not, continue as normal
 	push bx
 	shr bx,1
 	inc si ; get wait ticks
 	mov al,[si]
-	dec al
 	mov byte [midi_track_wait+bx],al ; how long to wait
 	pop bx
 	jmp .track_loop_end_wait
@@ -357,6 +358,7 @@ midi_interrupt:
 	mov ax,[midi_track_offset_i+bx]
 	mov word [midi_track_offset+bx],ax
 	pop bx
+	mov byte [midi_track_wait+bx],0
 	inc bx
 	cmp bl,[midi_tracks]
 	jne .offset_loop
