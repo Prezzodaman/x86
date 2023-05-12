@@ -8,23 +8,6 @@ testmid_play:
 	mov word [midi_track_offset+10],testmid_track_6
 	mov word [midi_track_offset+12],testmid_track_7
 	mov word [midi_length],testmid_length
-
-	mov byte [midi_looping],1
-	mov byte [midi_speed],4
-	
-	mov al,0
-	mov ah,80
-	call midi_channel_change
-	mov al,1
-	mov ah,81
-	call midi_channel_change
-	mov al,2
-	mov ah,96
-	call midi_channel_change
-	mov al,3
-	mov ah,8
-	call midi_channel_change
-	
 	call midi_play_song
 	ret
 

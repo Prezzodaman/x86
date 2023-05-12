@@ -20,6 +20,14 @@ if len(sys.argv)>2:
         last_note=[]
         for a in range(0,track_amount):
             last_note.append([""])
+        instruments=[]
+        for a in range(0,track_amount):
+            instruments.append(0)
+        for a in range(0,track_amount):
+            for line in input_data:
+                line_split=line.split("|")[1:]
+                if line_split[a][3:5].isdigit():
+                    instruments[a]=int(line_split[a][3:5])-1
         for line in input_data:
             if "\n" in line:
                 line=line[:-1].strip("\n")
@@ -31,23 +39,19 @@ if len(sys.argv)>2:
                 note_on=False
                 # command order:
                 # track number (only used in this program), note on/off, note number, velocity
-                # track 10 or above is assumed to be drums (because each channel is monophonic, so that's to get around it!)
-                # not relevant for this program, but essential to know
-                track_temp=track
-                if track>9:
-                    track_temp=9
+                # the instrument number in a pattern corresponds to the midi channel, so you can spread chords across multiple tracks, and have them use the same channel
                 if note=="...":
                     commands.append(0)
                     commands.append(0)
                 elif note!="^^^":
                     note=note[:2]+str(int(note[-1:])-1)
                     note_name=note.lower().replace("-","_").replace("#","_sharp_")
-                    commands.append(0x90+track_temp)
+                    commands.append(0x90+instruments[track])
                     commands.append(note_name)
                     note_on=True
                     last_note[track]=note_name
                 if note=="^^^":
-                    commands.append(0x80+track_temp)
+                    commands.append(0x80+instruments[track])
                     commands.append(last_note[track])
                 volume=line_split[track][6:8]
                 if volume=="..":
@@ -57,7 +61,6 @@ if len(sys.argv)>2:
                         commands.append(0)
                 else:
                     commands.append((int(volume)*2)-1)
-                #instrument=line_split[track][3:5]
                 
                 tracks[track].append(commands)
         
