@@ -116,7 +116,7 @@ q:
 	call midi_all_notes_off_channel
 	jmp q
 	
-%include "test_mid.asm"
+%include "test_mid_c.asm"
 head_track db "Track $"
 head_on db "ON $" ; apply directly to the forehead
 head_off db "OFF$"

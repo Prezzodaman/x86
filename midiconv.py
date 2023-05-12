@@ -10,6 +10,8 @@ if len(sys.argv)>2:
             input_data=file.readlines()
         input_data=input_data[1:]
         
+        # convert note data to arrays
+        
         track_amount=len(input_data[0].split("|")[1:])
         length=len(input_data)
         tracks=[]
@@ -59,6 +61,8 @@ if len(sys.argv)>2:
                 
                 tracks[track].append(commands)
         
+        # remove blank tracks
+        
         tracks_sorted=[]
         for track in tracks:
             blank=True
@@ -67,9 +71,39 @@ if len(sys.argv)>2:
                     blank=False
             if not blank:
                 tracks_sorted.append(track)
+        
+        # compress tracks
+        
+        tracks_compressed=[]
+        for track in tracks_sorted:
+            counter=0
+            commands_compressed=[]
+            for set in track:
+                if set==[0,0,0]:
+                    counter+=1
+                else:
+                    if counter>0:
+                        commands_compressed.append([0xFF,counter])
+                        commands_compressed.append(set)
+                        counter=0
+                    elif counter>255:
+                        commands_compressed.append([0xFF,counter])
+                        counter=0
+                    else:
+                        commands_compressed.append(set)
+            if counter>0:
+                commands_compressed.append([0xFF,counter])
+                commands_compressed.append(set)
+            tracks_compressed.append(commands_compressed)
+            
+        # check for bloated tracks
+        for track in range(0,len(tracks_compressed)):
+            if len(tracks_compressed[track])>len(tracks_sorted[track]):
+                tracks_compressed[track]=tracks_sorted[track]
+                
         label_start=file_name.split(".")[0].replace(" ","_")
         file_finished=label_start + "_play:\n"
-        file_finished+="\tmov byte [midi_tracks]," + str(len(tracks_sorted)-1) + "\n"
+        file_finished+="\tmov byte [midi_tracks]," + str(len(tracks_compressed)-1) + "\n"
         for a in range(0,len(tracks_sorted)):
             if a==0:
                 file_finished+="\tmov word [midi_track_offset],"
@@ -79,10 +113,10 @@ if len(sys.argv)>2:
         file_finished+="\tmov word [midi_length]," + label_start + "_length\n\tcall midi_play_song\n\tret\n\n"
     
         file_finished+=label_start + "_length equ " + str(length) + "\n"
-        for counter,track in enumerate(tracks_sorted):
+        for counter,track in enumerate(tracks_compressed):
             track_string=label_start + "_track_" + str(counter+1) + ": db "
             for set in range(0,len(track)):
-                for command in range(0,3):
+                for command in range(0,len(track[set])):
                     track_string+=str(track[set][command]) + ","
             file_finished+=track_string[:-1]+"\n"
                 

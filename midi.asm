@@ -172,7 +172,8 @@ midi_position dw 0 ; overall
 midi_speed db 0 ; specified by the user
 midi_speed_counter db 0 ; used internally for keeping time
 midi_tracks db 0 ; how many are there in the current song? (counting from 0)
-midi_track_event db 0 ; bit states, for the programmer's use
+midi_track_event dw 0 ; bit states, for the programmer's use
+midi_track_wait resb 16 ; how many ticks to wait before playing the note?
 midi_last_command resw 16
 midi_playing db 0
 midi_looping db 0
@@ -192,6 +193,7 @@ midi_play_song:
 	mov ax,[midi_track_offset+bx]
 	mov word [midi_track_offset_i+bx],ax
 	pop bx
+	mov byte [midi_track_wait+bx],0
 	inc bx
 	cmp bl,[midi_tracks]
 	jne .offset_loop
@@ -238,17 +240,34 @@ midi_interrupt:
 	push bx
 	shl bx,1
 	
-	push bx
-	shr bx,1
-	bt word [midi_tracks_playing],bx ; current track playing?
-	pop bx
-	jnc .track_loop_end ; if not, skip
-	
 	xor cl,cl ; drum flag (for note offs)
 	mov si,[midi_track_offset+bx] ; one byte at a time
 	mov al,[si] ; note on/off
 	cmp al,0 ; null byte?
 	je .track_loop_end ; if so, skip everything
+	cmp al,255 ; wait command?
+	jne .no_wait ; if not, continue as normal
+	push bx
+	shr bx,1
+	inc si ; get wait ticks
+	mov al,[si]
+	dec al
+	mov byte [midi_track_wait+bx],al ; how long to wait
+	pop bx
+	jmp .track_loop_end_wait
+	
+.no_wait:
+	push bx
+	shr bx,1
+	cmp byte [midi_track_wait+bx],0 ; no ticks to wait?
+	pop bx
+	je .no_wait_skip ; if not, play note
+	push bx
+	shr bx,1
+	dec byte [midi_track_wait+bx] ; otherwise, decrease
+	pop bx
+	jmp .track_loop_end_skip
+.no_wait_skip:
 	cmp al,note_on ; it's a valid command, is it a note off already?
 	jb .track_loop_note_off_skip ; if so, continue as normal
 	mov ax,[midi_last_command+bx] ; note off the last played note
@@ -274,6 +293,12 @@ midi_interrupt:
 	jne .track_loop_skip ; if not, skip
 	mov cl,1
 .track_loop_skip:
+	push bx
+	shr bx,1
+	bt word [midi_tracks_playing],bx ; current track playing?
+	pop bx
+	jnc .track_loop_end ; if not, skip
+	
 	mov al,[si] ; note on/off
 	out dx,al
 	inc si
@@ -309,6 +334,10 @@ midi_interrupt:
 	
 .track_loop_end:
 	add word [midi_track_offset+bx],3
+	jmp .track_loop_end_skip
+.track_loop_end_wait:
+	add word [midi_track_offset+bx],2
+.track_loop_end_skip:
 	pop bx
 	inc bx
 	cmp bl,[midi_tracks]
