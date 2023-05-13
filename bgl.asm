@@ -37,6 +37,7 @@ bgl_key_handler_orig dw 0,0
 bgl_y_clip db 0
 bgl_no_bounds db 0
 bgl_tint db 0
+bgl_mask db 0
 
 bgl_scale_x dd 1
 bgl_scale_y dd 1
@@ -611,6 +612,7 @@ bgl_draw_gfx_rotate:
 	
 .draw:
 	add al,[bgl_tint]
+	call bgl_get_mask_value
 	mov byte [es:di],al
 .skip:
 	inc di
@@ -808,6 +810,7 @@ bgl_draw_gfx_scale:
 	
 .draw:
 	add al,[bgl_tint]
+	call bgl_get_mask_value
 	mov byte [es:di],al
 .skip:
 	inc di
@@ -848,15 +851,15 @@ bgl_draw_gfx_scale:
 	ret
 
 bgl_get_buffer_pixel:
-	push bx
 	push cx
+	push dx
 	; input: cx, dx = x, y (of screen)
 	; output: al = pixel
 	; gets the value of a pixel from the bgl's buffer
 	call bgl_get_x_y_offset ; returns offset in di
 	mov al,[es:di] ; aHits ThaHat Easy! (tm)
+	pop dx
 	pop cx
-	pop bx
 	ret
 
 bgl_get_gfx_pixel:
@@ -883,6 +886,25 @@ bgl_get_gfx_pixel:
 	pop dx
 	pop cx
 	pop bx
+	ret
+
+bgl_get_mask_value: ; input: cx, dx = internal x and y counter (from 0), al = original colour index, output: al = tinted colour index
+	cmp byte [bgl_mask],0
+	je .end
+	push bx
+	push cx
+	push dx
+	add cx,[bgl_x_pos]
+	add dx,[bgl_y_pos]
+	push ax
+	call bgl_get_buffer_pixel
+	mov bl,al
+	pop ax
+	add al,bl
+	pop dx
+	pop cx
+	pop bx
+.end:
 	ret
 
 bgl_draw_gfx_fast:
@@ -928,6 +950,7 @@ bgl_draw_gfx_fast:
 	mov al,[bgl_background_colour]
 .erase_skip:
 	add al,[bgl_tint]
+	call bgl_get_mask_value
 	mov byte [es:di],al
 .draw_skip:
 	inc di
@@ -1017,6 +1040,13 @@ bgl_draw_gfx:
 	mov al,[bgl_background_colour] ; otherwise, use background colour
 .erase_skip:
 	add al,[bgl_tint]
+	push cx
+	push dx
+	sub cx,[bgl_x_pos]
+	sub dx,[bgl_y_pos]
+	call bgl_get_mask_value
+	pop dx
+	pop cx
 	mov byte [es:di],al
 	
 .skip:
@@ -1232,6 +1262,7 @@ bgl_draw_gfx_rle: ; "draw graphics... really?"
 .draw_loop_main:
 	push ax
 	add al,[bgl_tint]
+	call bgl_get_mask_value
 	mov byte [es:di],al
 	pop ax
 .draw_loop_skip:
@@ -1340,6 +1371,7 @@ bgl_draw_gfx_rle_fast: ; "draw graphics, really fast"
 .draw_loop_main:
 	push ax
 	add al,[bgl_tint]
+	call bgl_get_mask_value
 	mov byte [es:di],al
 	pop ax
 .draw_loop_skip:
