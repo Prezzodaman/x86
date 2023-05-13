@@ -42,7 +42,7 @@ blaster_sound_looping db 0
 blaster_dma_page dw 0
 blaster_dma_offset dw 0
 
-; 4-voice sample mixing
+; multi-voice sample mixing (default 4)
 
 blaster_mix_75hz equ 624 ; still trying to find a formula!
 blaster_mix_60hz equ 731
@@ -53,7 +53,21 @@ blaster_mix_18hz equ 2414
 	blaster_mix_buffer_base_length equ blaster_mix_75hz
 %endif
 blaster_mix_buffer_multiplier equ 1
-blaster_mix_voices_shift equ 2 ; = 1<<2=4 voices
+%ifdef blaster_mix_1_voice
+	%define blaster_mix_custom_voices
+	blaster_mix_voices_shift equ 0 ; one voice, no need to shift
+%endif
+%ifdef blaster_mix_2_voices
+	%define blaster_mix_custom_voices
+	blaster_mix_voices_shift equ 1 ; = 1<<1=2 voices
+%endif
+%ifdef blaster_mix_8_voices
+	%define blaster_mix_custom_voices
+	blaster_mix_voices_shift equ 3 ; = 1<<3=8 voices
+%endif
+%ifndef blaster_mix_custom_voices
+	blaster_mix_voices_shift equ 2 ; = 1<<2=4 voices
+%endif
 blaster_mix_voices equ 1<<blaster_mix_voices_shift
 blaster_mix_buffer_size_base equ ((blaster_mix_buffer_base_length/4)*blaster_mix_buffer_multiplier)+1
 %ifdef blaster_mix_rate_11025
