@@ -43,14 +43,14 @@ if len(sys.argv)>2:
                 if note=="...":
                     commands.append(0)
                     commands.append(0)
-                elif note!="^^^":
+                elif note!="^^^" and note!="===":
                     note=note[:2]+str(int(note[-1:])-1)
                     note_name=note.lower().replace("-","_").replace("#","_sharp_")
                     commands.append(0x90+instruments[track])
                     commands.append(note_name)
                     note_on=True
                     last_note[track]=note_name
-                if note=="^^^":
+                if note=="^^^" or note=="===":
                     commands.append(0x80+instruments[track])
                     commands.append(last_note[track])
                 volume=line_split[track][6:8]
@@ -84,13 +84,14 @@ if len(sys.argv)>2:
             for set in track:
                 if set==[0,0,0]:
                     counter+=1
+                    if counter>253: # 255 is the wait command, 254 is the end command
+                        commands_compressed.append([0xFF,counter-2])
+                        commands_compressed.append([1,0,0]) # so it's not interpreted as a null byte
+                        counter=0
                 else:
                     if counter>0:
                         commands_compressed.append([0xFF,counter-1])
                         commands_compressed.append(set)
-                        counter=0
-                    elif counter>255:
-                        commands_compressed.append([0xFF,counter-1])
                         counter=0
                     else:
                         commands_compressed.append(set)
