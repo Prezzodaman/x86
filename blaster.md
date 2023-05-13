@@ -7,10 +7,10 @@ Initializes the Sound Blaster by resetting the DSP, turning on the speaker, repl
 Deinitializes the Sound Blaster by turning off the speaker, restoring the interrupt service routine, and freeing any opened files.
 
 ## blaster_play_sound
-Plays a sample through the Sound Blaster, with **si** containing the offset to the sound, and **cx** containing the length.
+Plays a sample through the Sound Blaster, with **si** containing the offset to the sound, and **cx** containing the length. The buffer size has to be set to a fixed value; see **blaster_buffer_size** for more information.
 
 ## blaster_mix_retrace
-Performs all the mixing calculations for 4-voice playback, plays it back, and waits for the vertical retrace. This is important, because the buffer size is linked directly to the retrace period. To perform the calculations without waiting for the retrace, use **blaster_mix_calculate** instead.
+Performs all the mixing calculations for multi-voice playback, plays it back, and waits for the vertical retrace. This is important, because the buffer size is linked directly to the retrace period. To perform the calculations without waiting for the retrace, use **blaster_mix_calculate** instead.
 
 ## blaster_mix_play_sample
 Plays a sample using the mix buffer, where **al** is the voice number (0-3), **ah** decides whether the sample is looping (strictly 0 or 1!), **si** points to the sample, and **ecx** defines the length. To stream a sample, set **bx** to 1, and make **si** point to a zero-terminated filename. An error will occur if the filename's invalid. Streaming samples means that you can use a sample up to 4gb long!
@@ -20,12 +20,6 @@ Stops voice number **al** from playing in the mix buffer.
 
 ## blaster_set_sample_rate
 A *macro* that sets the sample rate of the Sound Blaster. To use it, simply put ```blaster_set_sample_rate <rate>```
-
-## blaster_mix_rate_11025
-%define this at the beginning of the code to set the 4-voice sample rate to 11025Hz.
-
-## blaster_mix_rate_22050
-%define this at the beginning of the code to set the 4-voice sample rate to 22050Hz.
 
 ## blaster_buffer_size
 A *constant* that specifies the size of the Sound Blaster's buffer in bytes. Be sure to put this above the %include! It's used as follows:
@@ -48,6 +42,14 @@ A *constant* that defines how big the mix buffer is. This doesn't need to be cha
 * blaster_mix_18hz
 
 A timer library is available (timer.asm) which contains the appropriate speeds, and allows you to change the speed and replace the interrupt. Using the default timer speed (18.2Hz) will give the cleanest sounding results.
+
+# %defines
+* **blaster_mix_rate_11025** - Sets the mixing sample rate to 11025Hz.
+* **blaster_mix_rate_22050** - Sets the mixing sample rate to 22050Hz.
+* **blaster_buffer_size_custom** - Allows you to set a custom buffer size. Define this if you're using the system timer for the mix buffer, or playing back single samples (using **blaster_play_sound**). Then, set the constant **blaster_mix_buffer_base_length** to the desired value. See above for more information!
+* **blaster_mix_1_voice** - Uses a single voice for multi-voice mixing. This is great for streaming single sounds, as you get the full bit depth!
+* **blaster_mix_2_voices** - Uses 2 voices for multi-voice mixing.
+* **blaster_mix_8_voices** - Uses 8 voices for multi-voice mixing. This significantly reduces the volume!
 
 # Nitty Gritty Functions
 
