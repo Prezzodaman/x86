@@ -46,6 +46,7 @@ A timer library is available (timer.asm) which contains the appropriate speeds, 
 # %defines
 * **blaster_mix_rate_11025** - Sets the mixing sample rate to 11025Hz.
 * **blaster_mix_rate_22050** - Sets the mixing sample rate to 22050Hz.
+* **blaster_mix_rate_44100** - Sets the mixing sample rate to 44100Hz.
 * **blaster_buffer_size_custom** - Allows you to set a custom buffer size. Define this if you're using the system timer for the mix buffer, or playing back single samples (using **blaster_play_sound**). Then, set the constant **blaster_mix_buffer_base_length** to the desired value. See above for more information!
 * **blaster_mix_1_voice** - Uses a single voice for multi-voice mixing. This is great for streaming single sounds, as you get the full bit depth!
 * **blaster_mix_2_voices** - Uses 2 voices for multi-voice mixing.
