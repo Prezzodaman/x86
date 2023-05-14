@@ -132,3 +132,5 @@ Finds the sine of value **ax** using a lookup table, and puts the result into **
 Finds the cosine of value **ax** using a lookup table, and puts the result into **ax**.
 ## bgl_square
 Finds the square of value **eax**, and puts the result into **eax**. Used internally for **bgl_draw_gfx_scale**, but can be used elsewhere!
+## bgl_blaster_visualize
+If you're using the Sound Blaster library, this draws a visualization of the sound to the BGL's buffer, similar to an oscilloscope. The library is automatically detected, as is the sample rate.
