@@ -9,6 +9,8 @@
 	
 	jmp blaster_end
 
+%define blaster
+
 %define blaster_get_time_constant(a) (65536-(256000000/a))>>8
 
 %macro blaster_set_sample_rate 1
@@ -71,12 +73,16 @@ blaster_mix_buffer_multiplier equ 1
 blaster_mix_voices equ 1<<blaster_mix_voices_shift
 blaster_mix_buffer_size_base equ ((blaster_mix_buffer_base_length/4)*blaster_mix_buffer_multiplier)+1
 %ifdef blaster_mix_rate_11025
-	%define blaster_mix_rate
+	%define blaster_mix_rate 11025
 	blaster_mix_buffer_size equ blaster_mix_buffer_size_base
 %endif
 %ifdef blaster_mix_rate_22050
-	%define blaster_mix_rate
+	%define blaster_mix_rate 22050
 	blaster_mix_buffer_size equ blaster_mix_buffer_size_base*2
+%endif
+%ifdef blaster_mix_rate_44100
+	%define blaster_mix_rate 44100
+	blaster_mix_buffer_size equ blaster_mix_buffer_size_base*4
 %endif
 %ifdef blaster_mix_rate
 	blaster_buffer_size equ blaster_mix_buffer_size
@@ -414,12 +420,7 @@ blaster_init:
 	call blaster_get_buffer_offset
 	call blaster_program_dma
 	
-%ifdef blaster_mix_rate_11025
-	blaster_set_sample_rate 11025
-%endif
-%ifdef blaster_mix_rate_22050
-	blaster_set_sample_rate 22050
-%endif
+	blaster_set_sample_rate blaster_mix_rate
 
 	pop bx
 	ret

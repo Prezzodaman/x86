@@ -66,7 +66,7 @@ bgl_font_string_offset dw 0
 bgl_joypad_states_1 db 00000000b
 bgl_joypad_states_2 db 00000000b
 	
-%ifdef bgl_blaster
+%ifdef blaster
 bgl_blaster_visualize:
 	push cx
 	push dx
@@ -86,7 +86,15 @@ bgl_blaster_visualize:
 	mov byte [es:di],10
 .skip:
 	inc cx
-	add si,1
+%ifdef blaster_mix_rate_11025
+	add si,2
+%endif
+%ifdef blaster_mix_rate_22050
+	add si,3
+%endif
+%ifdef blaster_mix_rate_44100
+	add si,7
+%endif
 	cmp si,blaster_mix_buffer+blaster_mix_buffer_size
 	jb .loop
 	
@@ -101,12 +109,25 @@ bgl_square: ; eax = number to square, output in eax
 	push ebx
 	push ecx
 	push edx
+	cmp eax,0
+	jl .negative
 	mov edx,eax
 	mov ecx,eax
 	xor eax,eax
-.loop:
+.positive_loop:
 	add eax,edx
-	loop .loop
+	loop .positive_loop
+	jmp .end
+.negative:
+	neg eax
+	mov edx,eax
+	mov ecx,eax
+	xor eax,eax
+.negative_loop:
+	add eax,edx
+	loop .negative_loop
+	neg eax
+.end:
 	pop edx
 	pop ecx
 	pop ebx
