@@ -9,10 +9,14 @@
 
 %define bgl ; used in other libraries to detect!
 
-%define bgl_get_font_offset(a,b) b+(((8*8)+2)*(a-33))
-%define bgl_get_font_number_offset(a,b) b+((a+15)*((8*8)+2))
+%ifndef bgl_no_font
+	%define bgl_get_font_offset(a,b) b+(((8*8)+2)*(a-33))
+	%define bgl_get_font_number_offset(a,b) b+((a+15)*((8*8)+2))
+%endif
 
-bgl_rle_word dw 0
+%ifndef bgl_no_rle
+	bgl_rle_word dw 0
+%endif
 bgl_flip db 0
 bgl_erase db 0
 bgl_width db 0
@@ -23,48 +27,60 @@ bgl_y_pos dw 0
 bgl_buffer_offset dw 0
 bgl_background_colour db 0
 bgl_opaque db 0
-bgl_collision_flag db 0
-bgl_collision_x1 dw 0
-bgl_collision_x2 dw 0
-bgl_collision_y1 dw 0
-bgl_collision_y2 dw 0
-bgl_collision_w1 dw 0
-bgl_collision_w2 dw 0
-bgl_collision_h1 dw 0
-bgl_collision_h2 dw 0
-bgl_key_states resb 128
-bgl_key_handler_orig dw 0,0
+%ifndef bgl_no_collision
+	bgl_collision_flag db 0
+	bgl_collision_x1 dw 0
+	bgl_collision_x2 dw 0
+	bgl_collision_y1 dw 0
+	bgl_collision_y2 dw 0
+	bgl_collision_w1 dw 0
+	bgl_collision_w2 dw 0
+	bgl_collision_h1 dw 0
+	bgl_collision_h2 dw 0
+%endif
+%ifndef bgl_no_keys
+	bgl_key_states resb 128
+	bgl_key_handler_orig dw 0,0
+%endif
 bgl_y_clip db 0
 bgl_no_bounds db 0
 bgl_tint db 0
 bgl_mask db 0
 
-bgl_scale_x dd 1
-bgl_scale_y dd 1
-bgl_scale_factor_width dd 0
-bgl_scale_factor_height dd 0
-bgl_scale_width dw 0
-bgl_scale_height dw 0
-bgl_scale_centre db 0
-bgl_scale_square db 0
+%ifndef bgl_no_scale
+	bgl_scale_x dd 1
+	bgl_scale_y dd 1
+	bgl_scale_factor_width dd 0
+	bgl_scale_factor_height dd 0
+	bgl_scale_width dw 0
+	bgl_scale_height dw 0
+	bgl_scale_centre db 0
+	bgl_scale_square db 0
 
-bgl_scale_precision equ 8
+	bgl_scale_precision equ 8
+%endif
 
-bgl_rotate_angle dw 0
-bgl_rotate_angle_sin dw 0
-bgl_rotate_angle_cos dw 0
-bgl_rotate_x_centre dw 0
-bgl_rotate_y_centre dw 0
-bgl_rotate_x_adjusted dw 0
-bgl_rotate_y_adjusted dw 0
+%ifndef bgl_no_rotate
+	bgl_rotate_angle dw 0
+	bgl_rotate_angle_sin dw 0
+	bgl_rotate_angle_cos dw 0
+	bgl_rotate_x_centre dw 0
+	bgl_rotate_y_centre dw 0
+	bgl_rotate_x_adjusted dw 0
+	bgl_rotate_y_adjusted dw 0
+%endif
 
-bgl_font_offset dw 0
-bgl_font_size db 0
-bgl_font_spacing db 0
-bgl_font_string_offset dw 0
+%ifndef bgl_no_font
+	bgl_font_offset dw 0
+	bgl_font_size db 0
+	bgl_font_spacing db 0
+	bgl_font_string_offset dw 0
+%endif
 
-bgl_joypad_states_1 db 00000000b
-bgl_joypad_states_2 db 00000000b
+%ifndef bgl_no_joypad
+	bgl_joypad_states_1 db 00000000b
+	bgl_joypad_states_2 db 00000000b
+%endif
 	
 %ifdef blaster
 bgl_blaster_visualize:
@@ -105,6 +121,7 @@ bgl_blaster_visualize:
 	ret
 %endif
 	
+%ifndef bgl_no_scale
 bgl_square: ; eax = number to square, output in eax
 	push ebx
 	push ecx
@@ -132,7 +149,9 @@ bgl_square: ; eax = number to square, output in eax
 	pop ecx
 	pop ebx
 	ret
+%endif
 	
+%ifndef bgl_no_wave
 bgl_get_sine: ; value in ax, result in ax
 	push bx
 	push dx
@@ -159,7 +178,9 @@ bgl_get_cosine: ; value in ax, result in ax
 	pop dx
 	pop bx
 	ret
+%endif
 	
+%ifndef bgl_no_palette
 bgl_draw_full_gfx_pal:
 	push ax
 	push bx
@@ -227,7 +248,9 @@ delay:
 	call bgl_restore_orig_palette
 	pop cx
 	ret
+%endif
 	
+%ifndef bgl_no_joypad
 bgl_joypad_handler:
 	push ax
 	push bx
@@ -369,7 +392,9 @@ bgl_joypad_handler:
 	pop bx
 	pop ax
 	ret
+%endif
 
+%ifndef bgl_no_font
 bgl_get_font_number_offset: ; input in ax (number 0-9), font label in bx, result will be in ax
 	push dx
 	push bx
@@ -381,6 +406,7 @@ bgl_get_font_number_offset: ; input in ax (number 0-9), font label in bx, result
 	add ax,bx
 	pop dx
 	ret
+%endif
 	
 bgl_pseudo_fade:
 	push di
@@ -442,6 +468,7 @@ bgl_pseudo_fade:
 	pop di
 	ret
 	
+%ifndef bgl_no_rotate
 bgl_draw_gfx_rotate:
 	; reference:
 	; https://www.codingame.com/playgrounds/2524/basic-image-manipulation/transformation
@@ -659,7 +686,9 @@ bgl_draw_gfx_rotate:
 
 	popa
 	ret
+%endif
 	
+%ifndef bgl_no_scale
 bgl_draw_gfx_scale:
 
 	; the simplest and most functional algorithm: (used as a reference)
@@ -870,6 +899,7 @@ bgl_draw_gfx_scale:
 	pop dword [bgl_scale_y]
 	pop dword [bgl_scale_x]
 	ret
+%endif
 
 bgl_get_buffer_pixel:
 	push cx
@@ -1143,6 +1173,7 @@ bgl_draw_full_gfx:
 	pop ax
 	ret
 	
+%ifndef bgl_no_rle
 bgl_draw_full_gfx_rle:
 	push ax
 	push bx
@@ -1422,6 +1453,7 @@ bgl_draw_gfx_rle_fast: ; "draw graphics, really fast"
 	pop bx
 	pop ax
 	ret
+%endif
 	
 bgl_get_x_y_offset: ; result: offset in di - requires: cx to contain x, dx to contain y
 	push cx
@@ -1438,7 +1470,7 @@ bgl_get_x_y_offset: ; result: offset in di - requires: cx to contain x, dx to co
     pop cx
 	ret
 	
-	
+%ifndef bgl_no_collision
 bgl_collision_check:
 	push ax
 	
@@ -1497,8 +1529,10 @@ bgl_point_collision_check:
 	mov byte [bgl_collision_flag],1
 .skip:
 	pop ax
-	ret	
+	ret
+%endif
 
+%ifndef bgl_no_keys
 bgl_key_handler:
 	push ax
 	push bx
@@ -1553,6 +1587,7 @@ bgl_replace_key_handler:
 	pop ax
 	pop dx
 	ret
+%endif
 	
 bgl_wait_retrace:
 	push ax
@@ -1586,8 +1621,10 @@ bgl_init_last:
 	xor al,al ; clear buffer
 	call bgl_flood_fill_full
 	
+%ifndef bgl_no_keys
 	call bgl_replace_key_handler
 	call bgl_get_orig_palette
+%endif
 	ret
 	
 bgl_init: ; yeah mate, its bgl init bruv
@@ -1700,6 +1737,7 @@ bgl_flood_fill_fast: ; di: start, cx: end
 	pop ax
 	ret
 	
+%ifndef bgl_no_palette
 bgl_restore_orig_palette:
 	push ax
 	push dx
@@ -1837,7 +1875,6 @@ bgl_fade_out:
 	pop ax
 	ret
 	
-	
 bgl_fade_in: ; work in progress - it does technically work, but it looks a bit weird, and i know why. but i've got fading to work anyway so i'm happy!
 	push ax
 	push bx
@@ -1881,7 +1918,9 @@ bgl_fade_in: ; work in progress - it does technically work, but it looks a bit w
 	pop bx
 	pop ax
 	ret
+%endif
 	
+%ifndef bgl_no_keys
 bgl_escape_exit:
 	cmp word [bgl_key_states+1],0 ; escape pressed?
 	je .skip
@@ -1900,6 +1939,7 @@ bgl_escape_exit_fade:
 	int 21h
 .skip:
 	ret
+%endif
 	
 bgl_error:
 
@@ -1982,6 +2022,7 @@ bgl_write_hex_digit: ; dl: value between 0-15 (if above, it'll get the last digi
 	pop dx
 	ret
 	
+%ifndef bgl_no_font
 bgl_draw_font_number:
 	; eax = number
 	; cx = digits
@@ -2089,10 +2130,13 @@ bgl_draw_font_string:
 	pop bx
 	pop ax
 	ret
+%endif
 	
 bgl_reset:
 	push ax
+%ifndef bgl_no_keys
 	call bgl_restore_orig_key_handler
+%endif
 	mov ax,3 ; restore graphics mode
 	int 10h
 	pop ax
@@ -2101,9 +2145,7 @@ bgl_reset:
 bgl_error_message: db "oops something bad has bappened",13,10,"$"
 cr_lf: db 13,10,"$"
 
-wave_table:
-	dw 0,12,25,37,49,60,71,81,91,99,106,113,118,122,125,126,126,125,123,120,115,109,102,94,85,76,65,54,42,30,17,5,-7,-20,-32,-44,-56,-67,-77,-87,-96,-103,-110,-116,-120,-124,-126,-126,-126,-124,-121,-117,-112,-105,-98,-89,-80,-69,-59,-47,-35,-23,-10 ; length: 63
-
+%ifndef bgl_no_wave
 wave_table_deg:
 	dw 0,6,12,18,25,31,37,43,50,56,62,68,74,80,87,93,99,105,111,117,123,129,134,140,146,152,157,163,169,174,179,185,190,196,201,206,211,216,221,226,231,236,240,245,250
 	dw 254,258,263,267,271,275,279,283,287,291,294,298,301,305,308,311,314,317,320,323,326,328,331,333,336,338,340,342,344,346,347,349,350,352,353,354,355,356,357,358,358,359,359,359,359
@@ -2114,5 +2156,6 @@ wave_table_deg:
 	dw -360,-360,-360,-360,-360,-359,-359,-358,-357,-356,-355,-354,-353,-351,-350,-348,-347,-345,-343,-341,-339,-337,-334,-332,-329,-327,-324,-321,-318,-315,-312,-309,-306,-302,-299,-295,-292,-288,-284,-280,-276,-272,-268,-264,-259
 	dw -255,-251,-246,-241,-237,-232,-227,-222,-217,-212,-207,-202,-197,-191,-186,-181,-175,-170,-164,-158,-153,-147,-141,-135,-130,-124,-118,-112,-106,-100,-94,-88,-81,-75,-69,-63,-57,-51,-44,-38,-32,-26,-19,-13,-7
 	dw  -1
+%endif
 	
 bgl_end:
