@@ -13,7 +13,7 @@ Plays a sample through the Sound Blaster, with **si** containing the offset to t
 Performs all the mixing calculations for multi-voice playback, plays it back, and waits for the vertical retrace. This is important, because the buffer size is linked directly to the retrace period. To perform the calculations without waiting for the retrace, use **blaster_mix_calculate** instead.
 
 ## blaster_mix_play_sample
-Plays a sample using the mix buffer, where **al** is the voice number (0-3), **ah** decides whether the sample is looping (strictly 0 or 1!), **si** points to the sample, and **ecx** defines the length. To stream a sample, set **bx** to 1, and make **si** point to a zero-terminated filename. An error will occur if the filename's invalid. Streaming samples means that you can use a sample up to 4gb long!
+Plays a sample using the mix buffer, where **al** is the voice number, **ah** decides whether the sample is looping (strictly 0 or 1!), **si** points to the sample, and **ecx** defines the length. To stream a sample, set **bx** to 1, and make **si** point to a zero-terminated filename. An error will occur if the filename's invalid. Streaming samples means that you can use a sample up to 4gb long!
 
 ## blaster_mix_stop_sample
 Stops voice number **al** from playing in the mix buffer.

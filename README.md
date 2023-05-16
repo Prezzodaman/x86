@@ -4,7 +4,9 @@ Experiments with x86 assembly for DOS. The fun began on the 12th of January 2023
 Compile these with NASM using the following command:
 ```nasm -f bin -o file.com file.asm```
 
-Everything was developed with DOSBox running at roughly 76000 cycles, so please use that speed for the best results.
+All the libraries have been migrated to their own folder, so it's best to run the source file through **lib.py** first, then compile the resulting **temp.asm** file, and delete that afterwards. This is so old projects will still work!
+
+Everything was developed with DOSBox running at roughly 76000 cycles/ms, so please use that speed for the best results.
 
 ## The Original Premise
 Make a game that involves a bald, emotionless version of myself riding in a bumper car, mindlessly bumping into other cars to gain points. It'll be possible to bump the same car multiple times for a bonus, eventually oblitterating the car entirely by way of spontaneous combustion. The whole thing will be in a .com file, and have a size of under 64k.
@@ -26,7 +28,7 @@ The program **convert.py** is a simple Python script that converts an image to a
 ## Graphics
 The BGL uses double-buffering, which completely eliminates flicker. It works by allocating a chunk of memory that contains the entire video buffer, and doing all the drawing on that. Then, once it's finished drawing, the contents of the buffer are written to the active display. This means you don't see any of the redrawing that's happening behind the scenes, which is what happened with a single-buffered display, and resulted in lots of flicker (demonstrated in **bounce.asm** and **bitmap.asm**, my first graphics-related programs). I was alright with that initially, but then I realized for any serious purpose it's much better to use double-buffering. I also ended up writing directly to video memory instead of using the obscenely slow Int 10h/AH=0Ch BIOS call, because it does a bunch of checks beforehand that slow things down massively.
 
-Ever since I implemented double-buffering, I made a right silly doofus error. When allocating memory, it'll return an error code when something goes wrong, and store it in **ax**. I was assuming that it worked correctly, but after some degibbing (gibb), I found out that I was using the **error code** as the segment address, and somehow it was working! I'm now using the Program Segment Prefix (PSP), which at address 02h, gives me direct access to the first memory segment after the program. That's perfect for what I need, but there's probably some allocation weirdness that needs to be sorted out. We'll have to see, but For The Moment™ it seems to be working.
+Ever since I implemented double-buffering, I made a right silly doofus error. When allocating memory, it'll return an error code when something goes wrong, and store it in **ax**. I was assuming that it worked correctly, but after some degibbing (gibb), I found out that I was using the *error code* as the segment address, and somehow it was working! I'm now using the Program Segment Prefix (PSP), which at address 02h, gives me direct access to the first memory segment after the program. That's perfect for what I need, but there's probably some allocation weirdness that needs to be sorted out. We'll have to see, but For The Moment™ it seems to be working.
 
 The bit that made me pull my hair out was figuring out how to write directly to VGA memory. There is tons of conflicting information on the internet, but I eventually figured out how to do it. In this example, I'm using the **es** register instead of **ds**, because it won't interfere with other data reading/writing functions. I can simply use an index register for the offset (such as **bx**, **si** or **di**), and then write to memory like so:
 
@@ -35,10 +37,10 @@ mov ax,0a000h ; vga video offset
 mov es,ax ; only have to set this once at the beginning of the code
 mov di,0 ; destination index (used for the offset)
 mov al,2 ; the colour index to write
-mov byte [es:di],al ; write to offset di, starting from es
+mov byte [es:di],al ; write to offset di, at segment es
 ```
 
-Also, a worthy note about the layout of mode 13h is that the video memory actually extends beyond the visible graphics. The graphics start at offset A000h, and last for 64000 bytes. But I recently discovered that after it (at offset A000h:FA00h) there are an additional 768 bytes, which perfectly fits an entire colour palette. It has no relation to the colours you actually see, but it can be used as temporary storage, which is especially useful if you're doing effects that require altering the default palette, such as colour fading. This useful feature is barely documented anywhere, so I'm putting it here for my reference and yours too!
+Also, a worthy note about the layout of mode 13h is that the video memory actually extends beyond the visible graphics. The graphics start at segment A000h, and last for 64000 bytes. But I recently discovered that after it (at offset A000h:FA00h) there are an additional 768 bytes, which perfectly fits an entire colour palette. It has no relation to the colours you actually see, but it can be used as temporary storage, which is especially useful if you're doing effects that require altering the default palette, such as colour fading. This useful feature is barely documented anywhere, so I'm putting it here for my reference and yours too!
 
 ## Sound
 I've developed 2 different sound libraries: Beeplib and Blastlib. Beeplib handles the PC speaker, and it can play back sound effects, songs, and even *digital samples!* Sound effects are stored as "arrays" of word values, with a 0 denoting the end of a sound effect. You can also use 3 for note cuts or 2 to loop playback, useful for music. For "music", you can make a text file containing a bunch of notes, and convert it using **note2pitch.py**. Doing this allows for a much more readable syntax, before it gets converted into a bunch of macros.
