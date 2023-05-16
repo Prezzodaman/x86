@@ -29,9 +29,14 @@ random_range: ; gets a random number in range 0 to ax-1, the result is in ax
 	call random
 	pop bx ; pop top range into bx
 	xor dx,dx
+	cmp bx,0 ; make sure we're not dividing by 0
+	je .skip ; if so, return original number
 	div bx ; ax (random number) divided by bx (top range)
 	mov ax,dx ; here's the result!
-	
+	jmp .end
+.skip:
+	xor dx,dx
+.end:
 	pop dx
 	pop bx
 	ret

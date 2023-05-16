@@ -54,14 +54,22 @@ print_hex_digit: ; dl: value between 0-15 (if above, it'll get the last digit, s
 	pop dx
 	ret
 	
-clamp_value: ; ax = value, cx = maximum value, result in ax
-	push bx
+clamp_value: ; ax = value, bx = maximum value, result in ax
 	push dx
 	
 	xor dx,dx
-	div cx
+	cmp bx,0
+	je .end
+	div bx
 	mov ax,dx
-	
+.end:
 	pop dx
-	pop bx
+	ret
+	
+word_to_dword: ; input: ax, output: eax
+	push edx
+	cwd
+	shl edx,16
+	add eax,edx
+	pop edx
 	ret

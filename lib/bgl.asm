@@ -48,8 +48,8 @@ bgl_tint db 0
 bgl_mask db 0
 
 %ifndef bgl_no_scale
-	bgl_scale_x dd 1
-	bgl_scale_y dd 1
+	bgl_scale_x dd 0
+	bgl_scale_y dd 0
 	bgl_scale_factor_width dd 0
 	bgl_scale_factor_height dd 0
 	bgl_scale_width dw 0
@@ -68,6 +68,12 @@ bgl_mask db 0
 	bgl_rotate_y_centre dw 0
 	bgl_rotate_x_adjusted dw 0
 	bgl_rotate_y_adjusted dw 0
+	bgl_rotate_width db 0
+	bgl_rotate_height db 0
+	bgl_rotate_x_counter db 0
+	bgl_rotate_y_counter db 0
+	bgl_rotate_scale db 0
+	bgl_rotate_bounds db 0
 %endif
 
 %ifndef bgl_no_font
@@ -120,6 +126,110 @@ bgl_blaster_visualize:
 	pop cx
 	ret
 %endif
+	
+bgl_draw_box_fast:
+	push bx
+	push cx
+	push dx
+
+	; width and height are divided by 4 for speed, and boundary checks are skipped
+	
+	mov cx,[bgl_x_pos]
+	mov dx,[bgl_y_pos]
+	call bgl_get_x_y_offset
+	xor cx,cx
+	xor dx,dx
+	
+	mov ah,al ; fill eax with al
+	push ax
+	shl eax,16
+	pop ax
+	
+.loop:
+	push di
+	mov dword [es:di],eax
+	add di,320
+	mov dword [es:di],eax
+	add di,320
+	mov dword [es:di],eax
+	add di,320
+	mov dword [es:di],eax
+	pop di
+
+	inc di
+	inc cl
+	mov bl,[bgl_width]
+	shr bl,2
+	cmp cl,bl
+	jne .skip
+	xor cl,cl
+	add di,320
+	sub di,bx
+	inc dl
+	mov bl,[bgl_height]
+	shr bl,2
+	cmp dl,bl
+	je .end
+.skip:
+	jmp .loop
+.end:
+	pop dx
+	pop cx
+	pop bx
+	ret
+	
+bgl_draw_box:
+	push bx
+	push cx
+	push dx
+
+	; bgl_x_pos = x
+	; bgl_y_pos = y
+	; bgl_width = width
+	; bgl_height = height
+	; al = colour
+	mov cx,[bgl_x_pos]
+	mov dx,[bgl_y_pos]
+	call bgl_get_x_y_offset
+	xor cx,cx
+	xor dx,dx
+.loop:
+	push cx
+	push dx
+	add cx,[bgl_x_pos]
+	cmp cx,320
+	jge .skip
+	cmp cx,0
+	jl .skip
+	add dx,[bgl_y_pos]
+	cmp dx,200
+	jge .skip
+	cmp dx,0
+	jl .skip
+
+	mov byte [es:di],al
+
+.skip:
+	inc di
+	pop dx
+	pop cx
+	inc cl
+	cmp cl,[bgl_width]
+	jne .skip2
+	xor cl,cl
+	movzx bx,[bgl_width]
+	add di,320
+	sub di,bx
+	inc dl
+	cmp dl,[bgl_height]
+	je .end
+.skip2:
+	jmp .loop
+.end:
+	pop dx
+	pop cx
+	pop bx
+	ret
 	
 %ifndef bgl_no_scale
 bgl_square: ; eax = number to square, output in eax
@@ -176,6 +286,23 @@ bgl_get_cosine: ; value in ax, result in ax
 	shl bx,1
 	mov ax,[wave_table_deg+bx]
 	pop dx
+	pop bx
+	ret
+	
+bgl_get_sine_255: ; value in ax, result in al
+	push bx
+	mov bx,ax
+	and bx,255 ; quick way of getting remainder, but limited to powers of 2
+	mov al,[wave_table_255+bx]
+	pop bx
+	ret
+
+bgl_get_cosine_255: ; value in ax, result in al
+	push bx
+	mov bx,ax
+	add bx,64
+	and bx,255
+	mov al,[wave_table_255+bx]
 	pop bx
 	ret
 %endif
@@ -512,18 +639,30 @@ bgl_draw_gfx_rotate:
 	
 	; get x and y centre points
 	
+	cmp byte [bgl_rotate_bounds],0
+	je .scale_skip
+	movzx ax,[bgl_rotate_width]
+	shr ax,1
+	mov word [bgl_rotate_x_centre],ax
+	movzx ax,[bgl_rotate_height]
+	shr ax,1
+	mov word [bgl_rotate_y_centre],ax
+	jmp .scale_skip2
+.scale_skip:
 	movzx ax,[bgl_width]
 	shr ax,1
 	mov word [bgl_rotate_x_centre],ax
 	movzx ax,[bgl_height]
 	shr ax,1
 	mov word [bgl_rotate_y_centre],ax
-	
+.scale_skip2:
 	mov cx,[bgl_x_pos]
 	mov dx,[bgl_y_pos]
 	call bgl_get_x_y_offset
 	
-	xor cx,cx
+	mov byte [bgl_rotate_x_counter],0 ; used for width/height
+	mov byte [bgl_rotate_y_counter],0
+	xor cx,cx ; cx and dx are used for getting the pixel
 	xor dx,dx
 .loop:
 	push bx
@@ -552,6 +691,10 @@ bgl_draw_gfx_rotate:
 	push bx
 	mov ax,[bgl_rotate_x_centre]
 	mov bx,360
+	cmp byte [bgl_rotate_scale],0
+	je .scale_skip8
+	sub bx,[bgl_scale_x]
+.scale_skip8:
 	mul bx
 	add cx,ax
 	pop bx
@@ -585,33 +728,64 @@ bgl_draw_gfx_rotate:
 	push bx
 	mov ax,[bgl_rotate_y_centre]
 	mov bx,360
+	cmp byte [bgl_rotate_scale],0
+	je .scale_skip7
+	sub bx,[bgl_scale_x]
+.scale_skip7:
 	mul bx
 	add cx,ax
 	pop bx
 	
+.scale_skip3:
 	mov word [bgl_rotate_y_adjusted],cx
 	
 	mov ax,[bgl_rotate_x_adjusted]
 	mov bx,360-1 ; maximum sine value, minus 1
+	cmp byte [bgl_rotate_scale],0
+	je .scale_skip4
+	sub bx,[bgl_scale_x]
+.scale_skip4:
 	xor dx,dx
 	div bx
 	mov cx,ax
+	cmp byte [bgl_rotate_bounds],0
+	je .scale_skip5
+	movzx ax,[bgl_rotate_width]
+	shr ax,1
+	push bx
+	movzx bx,[bgl_width]
+	shr bx,1
+	sub ax,bx
+	pop bx
+	sub cx,ax
+.scale_skip5:
 	
 	mov ax,[bgl_rotate_y_adjusted]
 	xor dx,dx
 	div bx
 	mov dx,ax
+	cmp byte [bgl_rotate_bounds],0
+	je .scale_skip6
+	movzx ax,[bgl_rotate_height]
+	shr ax,1
+	push bx
+	movzx bx,[bgl_height]
+	shr bx,1
+	sub ax,bx
+	pop bx
+	sub dx,ax
 	
+.scale_skip6:
 	call bgl_get_gfx_pixel
 	
 	movzx bx,[bgl_width]
 	cmp cx,bx
-	jl .width_skip
+	jb .width_skip
 	mov al,[bgl_transparent]
 .width_skip:
 	movzx bx,[bgl_height]
 	cmp dx,bx
-	jl .height_skip
+	jb .height_skip
 	mov al,[bgl_transparent]
 .height_skip:
 	
@@ -628,9 +802,9 @@ bgl_draw_gfx_rotate:
 	push ax ; colour index
 	mov ax,[bgl_x_pos]
 	add ax,cx
-	cmp ax,319
+	cmp ax,320
 	pop ax
-	jg .skip
+	jge .skip
 	push ax
 	mov ax,[bgl_x_pos]
 	add ax,cx
@@ -666,6 +840,264 @@ bgl_draw_gfx_rotate:
 	mov byte [es:di],al
 .skip:
 	inc di
+	cmp byte [bgl_rotate_bounds],0
+	je .scale_skip9
+	inc byte [bgl_rotate_x_counter]
+	movzx ax,[bgl_rotate_width]
+	cmp byte [bgl_rotate_x_counter],al ; reached overall width?
+	jb .skip2 ; if not, do pixel x checks
+	inc byte [bgl_rotate_y_counter] ; otherwise, increase overall y...
+	mov byte [bgl_rotate_x_counter],0 ; reset overall x...
+	push ax
+	push bx
+	mov ax,320 ; move down a line
+	movzx bx,[bgl_rotate_width]
+	sub ax,bx
+	add di,ax
+	pop bx
+	pop ax
+	
+	mov ax,[bgl_rotate_height]
+	cmp byte [bgl_rotate_y_counter],al ; reached overall height?
+	je .end ; if so, end
+.skip2:
+	inc cx
+	cmp cl,[bgl_width] ; reached graphic width?
+	jb .loop_end ; if not, skip
+	cmp byte [bgl_rotate_x_counter],0 ; is overall x 0?
+	jne .loop_end ; if not, skip
+	xor cx,cx ; otherwise, reset pixel x
+	inc dx ; increase pixel y
+	jmp .loop_end
+.scale_skip9:
+	inc cx
+	cmp cl,[bgl_width]
+	jb .loop_end
+	push ax
+	push bx
+	mov ax,320
+	movzx bx,[bgl_width]
+	sub ax,bx
+	add di,ax
+	pop bx
+	pop ax
+	xor cx,cx
+	inc dx
+	cmp dl,[bgl_height]
+	jb .loop_end
+	jmp .end
+.loop_end:
+	jmp .loop
+.end:
+
+	popa
+	ret
+	
+bgl_draw_gfx_rotate_fast:
+	; using multiples of 255 instead of 360!
+	pusha
+
+	; find sin of angle..
+	mov ax,[bgl_rotate_angle]
+	call bgl_get_sine_255
+	cbw
+	mov word [bgl_rotate_angle_sin],ax
+	
+	; find cos of angle..
+	mov ax,[bgl_rotate_angle]
+	call bgl_get_cosine_255
+	cbw
+	mov word [bgl_rotate_angle_cos],ax
+
+	;;;
+
+	mov bx,[bgl_buffer_offset]
+	mov al,[bx]
+	mov byte [bgl_width],al
+	mov al,[bx+1]
+	mov byte [bgl_height],al
+	mov al,[bx+2]
+	mov byte [bgl_transparent],al
+	
+	; get x and y centre points
+	
+	cmp byte [bgl_rotate_bounds],0
+	je .bounds_skip
+	movzx ax,[bgl_rotate_width]
+	shr ax,1
+	mov word [bgl_rotate_x_centre],ax
+	movzx ax,[bgl_rotate_height]
+	shr ax,1
+	mov word [bgl_rotate_y_centre],ax
+	jmp .bounds_skip2
+.bounds_skip:
+	movzx ax,[bgl_width]
+	shr ax,1
+	mov word [bgl_rotate_x_centre],ax
+	movzx ax,[bgl_height]
+	shr ax,1
+	mov word [bgl_rotate_y_centre],ax
+.bounds_skip2:
+	mov cx,[bgl_x_pos]
+	mov dx,[bgl_y_pos]
+	call bgl_get_x_y_offset
+	
+	mov byte [bgl_rotate_x_counter],0 ; used for width/height
+	mov byte [bgl_rotate_y_counter],0
+	xor cx,cx
+	xor dx,dx
+.loop:
+	push bx
+	
+	; x
+	
+	push cx
+	push dx
+	
+	; 16-bit multiplication still has to be done :(
+	
+	mov bx,cx
+	sub bx,[bgl_rotate_x_centre]
+	mov ax,[bgl_rotate_angle_cos] ; cos(angle)
+	xor dx,dx
+	mul bx ; x*cos(angle)
+	mov cx,ax ; cx = x*cos(angle)
+	
+	pop bx ; original y counter into bx
+	push bx ;;
+	sub bx,[bgl_rotate_y_centre]
+	mov ax,[bgl_rotate_angle_sin] ; sin(angle)
+	xor dx,dx
+	mul bx ; y*sin(angle)
+	mov dx,ax ; dx = y*sin(angle)
+	sub cx,dx
+	
+	mov ax,[bgl_rotate_x_centre]
+	shl ax,7
+	add cx,ax
+	
+	mov word [bgl_rotate_x_adjusted],cx
+	
+	pop dx
+	pop cx
+	
+	; y
+	
+	push cx
+	push dx
+	
+	mov bx,cx
+	sub bx,[bgl_rotate_x_centre]
+	mov ax,[bgl_rotate_angle_sin] ; sin(angle)
+	xor dx,dx
+	mul bx ; x*sin(angle)
+	mov cx,ax ; cx = x*sin(angle)
+	
+	pop bx ;; original y counter into bx
+	push bx
+	sub bx,[bgl_rotate_y_centre]
+	mov ax,[bgl_rotate_angle_cos] ; cos(angle)
+	xor dx,dx
+	mul bx ; y*cos(angle)
+	mov dx,ax ; dx = y*cos(angle)
+	add cx,dx
+	
+	mov ax,[bgl_rotate_y_centre]
+	shl ax,7
+	add cx,ax
+	
+	mov dx,cx
+	shr dx,7
+	cmp byte [bgl_rotate_bounds],0
+	je .bounds_skip3
+	movzx ax,[bgl_rotate_height]
+	shr ax,1
+	push bx
+	movzx bx,[bgl_height]
+	shr bx,1
+	sub ax,bx
+	pop bx
+	sub dx,ax
+.bounds_skip3:
+	mov cx,[bgl_rotate_x_adjusted]
+	shr cx,7
+	cmp byte [bgl_rotate_bounds],0
+	je .bounds_skip4
+	movzx ax,[bgl_rotate_width]
+	shr ax,1
+	push bx
+	movzx bx,[bgl_width]
+	shr bx,1
+	sub ax,bx
+	pop bx
+	sub cx,ax
+	
+.bounds_skip4:
+	call bgl_get_gfx_pixel
+	
+	movzx bx,[bgl_width]
+	cmp cx,bx
+	jb .width_skip
+	mov al,[bgl_transparent]
+.width_skip:
+	movzx bx,[bgl_height]
+	cmp dx,bx
+	jb .height_skip
+	mov al,[bgl_transparent]
+.height_skip:
+	
+	pop dx
+	pop cx
+	
+	;;;
+	
+	pop bx
+	
+	cmp byte [bgl_opaque],0
+	jne .draw
+	cmp al,[bgl_transparent]
+	je .skip
+	cmp byte [bgl_erase],0
+	je .draw
+	mov al,[bgl_background_colour]
+	
+.draw:
+	add al,[bgl_tint]
+	call bgl_get_mask_value
+	mov byte [es:di],al
+.skip:
+	inc di
+	cmp byte [bgl_rotate_bounds],0
+	je .bounds_skip5
+	inc byte [bgl_rotate_x_counter]
+	movzx ax,[bgl_rotate_width]
+	cmp byte [bgl_rotate_x_counter],al ; reached overall width?
+	jb .skip2 ; if not, do pixel x checks
+	inc byte [bgl_rotate_y_counter] ; otherwise, increase overall y...
+	mov byte [bgl_rotate_x_counter],0 ; reset overall x...
+	push ax
+	push bx
+	mov ax,320 ; move down a line
+	movzx bx,[bgl_rotate_width]
+	sub ax,bx
+	add di,ax
+	pop bx
+	pop ax
+	
+	mov ax,[bgl_rotate_height]
+	cmp byte [bgl_rotate_y_counter],al ; reached overall height?
+	je .end ; if so, end
+.skip2:
+	inc cx
+	cmp cl,[bgl_width] ; reached graphic width?
+	jb .loop_end ; if not, skip
+	cmp byte [bgl_rotate_x_counter],0 ; is overall x 0?
+	jne .loop_end ; if not, skip
+	xor cx,cx ; otherwise, reset pixel x
+	inc dx ; increase pixel y
+	jmp .loop_end
+	
+.bounds_skip5:
 	inc cx
 	cmp cl,[bgl_width]
 	jb .loop_end
@@ -2158,6 +2590,9 @@ wave_table_deg:
 	dw -360,-360,-360,-360,-360,-359,-359,-358,-357,-356,-355,-354,-353,-351,-350,-348,-347,-345,-343,-341,-339,-337,-334,-332,-329,-327,-324,-321,-318,-315,-312,-309,-306,-302,-299,-295,-292,-288,-284,-280,-276,-272,-268,-264,-259
 	dw -255,-251,-246,-241,-237,-232,-227,-222,-217,-212,-207,-202,-197,-191,-186,-181,-175,-170,-164,-158,-153,-147,-141,-135,-130,-124,-118,-112,-106,-100,-94,-88,-81,-75,-69,-63,-57,-51,-44,-38,-32,-26,-19,-13,-7
 	dw  -1
+	
+wave_table_255:
+	db 0,3,6,9,12,16,19,22,25,28,31,34,37,40,43,46,49,52,54,57,60,63,66,68,71,73,76,78,81,83,86,88,90,92,94,96,98,100,102,104,106,108,109,111,112,114,115,116,118,119,120,121,122,123,123,124,125,125,126,126,126,127,127,127,127,127,127,127,126,126,125,125,124,124,123,122,121,120,119,118,117,116,114,113,112,110,108,107,105,103,101,99,97,95,93,91,89,87,84,82,80,77,75,72,69,67,64,61,59,56,53,50,47,44,41,39,36,32,29,26,23,20,17,14,11,8,5,2,-2,-5,-8,-11,-14,-17,-20,-23,-26,-29,-32,-36,-39,-41,-44,-47,-50,-53,-56,-59,-61,-64,-67,-69,-72,-75,-77,-80,-82,-84,-87,-89,-91,-93,-95,-97,-99,-101,-103,-105,-107,-108,-110,-112,-113,-114,-116,-117,-118,-119,-120,-121,-122,-123,-124,-124,-125,-125,-126,-126,-127,-127,-127,-127,-127,-127,-127,-126,-126,-126,-125,-125,-124,-123,-123,-122,-121,-120,-119,-118,-116,-115,-114,-112,-111,-109,-108,-106,-104,-102,-100,-98,-96,-94,-92,-90,-88,-86,-83,-81,-78,-76,-73,-71,-68,-66,-63,-60,-57,-54,-52,-49,-46,-43,-40,-37,-34,-31,-28,-25,-22,-19,-16,-12,-9,-6,-3,0
 %endif
 	
 bgl_end:

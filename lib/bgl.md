@@ -19,10 +19,29 @@ To convert an image to a .gfx file compatible with the BGL, run **convert.py**, 
 Identical to **bgl_draw_gfx**, but optimized for speed. Because of this, **bgl_flip** isn't supported, and there's no edge clipping, so graphics will still be visible if drawn outside the screen. However, it's at least 2x faster than **bgl_draw_gfx**!
 
 ## bgl_draw_gfx_scale
-Draws a *scaled* graphic to the BGL's buffer!! Uses all the same parameters as **bgl_draw_gfx**, with the addition of dwords **bgl_scale_x** and **bgl_scale_y** which allow you to scale the width and height independently. Higher values make the graphic smaller, and negative values make it bigger. The largest positive scale value is 32. To scale from the centre point instead of the top-left corner, set **bgl_scale_centre** to 1. To make the scaling linear, set **bgl_scale_square** to 1.
+Draws a *scaled* graphic to the BGL's buffer!! It uses all the same parameters as **bgl_draw_gfx**, with the addition of the following parameters:
+
+-- **bgl_scale_x** - The horizontal scale (dword)
+-- **bgl_scale_y** - The vertical scale (dword)
+-- **bgl_scale_centre** - If set, this scale from the centre point instead of the top-left corner (byte)
+-- **bgl_scale_square** - If set, scaling will be linear (byte)
+
+Higher scale values make the graphic smaller, and negative scale values make it bigger. The largest positive scale value is 32. 32-bit values are required so the graphic can be scaled to extremely small sizes!
 
 ## bgl_draw_gfx_rotate
-Draws a *rotated* graphic to the BGL's buffer!! Uses all the same parameters as **bgl_draw_gfx**, with the addition of the word **bgl_rotate_angle** which determines the rotation angle in degrees. It supports all parameters apart from **bgl_flip**. There's an odd behaviour where going from 0 to -1 results in a little jitter, but just offset your rotation value by a multiple of 360, and you're all good.
+Draws a *rotated* graphic to the BGL's buffer!! It uses all the same parameters as **bgl_draw_gfx**, with the addition of the following parameters:
+
+- **bgl_rotate_angle** - The angle of rotation, in degrees (word)
+- **bgl_rotate_bounds** - If set, this allows for custom rotation boundaries, so everything outside the graphic is visible (byte)
+- **bgl_rotate_width** - If **bgl_rotate_bounds** is set, this specifies the width of the bounding box (byte)
+- **bgl_rotate_height** - If **bgl_rotate_bounds** is set, this specifies the height of the bounding box (byte)
+
+It's also possible to scale and rotate a graphic at the same time, by setting **bgl_rotate_scale**! Then you can use the dword **bgl_scale_x** to change the scale. Both the horizontal and vertical scales are affected.
+
+All other regular parameters are supported apart from **bgl_flip**. If the angle value is -1, it results in a little jitter, due to 360 not being a power of 2. If that's the case, simply constrain the value to 360 and you're all good.
+
+## bgl_draw_gfx_rotate_fast
+Identical to **bgl_draw_gfx_rotate**, but uses 8-bit values and bit shifting, for a significant increase in speed. All the boundary checks are also skipped, as well as scaling, but custom boundaries are still supported. Because it uses 8-bit values, angles range from 0-255 instead of 0-360.
 
 ## bgl_draw_gfx_rle
 Draws an RLE encoded graphics file to the BGL's graphics buffer. Usage is identical to **bgl_draw_gfx**. To convert an image to RLE, use **convert.py** the same way as before, but use the option **--rle**. It's advisable to use a different file extension (such as .rle) to make it easier to identify an RLE encoded file. Using RLE offers a significant reduction in file size, but can be slower to draw.
@@ -47,6 +66,17 @@ Identical to **bgl_flood_fill**, but writes 2 bytes at a time instead. This is t
 
 ## bgl_flood_fill_full
 Fills the entire graphics buffer with a single colour, specified by **al**. This writes 4 bytes at a time, so it's extremely fast, but can interfere with other functions.
+
+## bgl_draw_box
+Draws a rectangle to the grapics buffer, with **al** specifying the colour. Parameters are passed using the following memory locations:
+
+- **bgl_x_pos** - X position to draw the box (word)
+- **bgl_y_pos** - Y position to draw the box (word)
+- **bgl_width** - The width of the box (byte)
+- **bgl_height** - The height of the box (byte)
+
+## bgl_draw_box_fast
+Identical to **bgl_draw_box**, but skips all boundary checks, and treats the width and height as multiples of 4.
 
 ## bgl_blaster_visualize
 If you're using the Sound Blaster library, this draws a visualization of the sound to the BGL's buffer, similar to an oscilloscope. The library is automatically detected, as is the sample rate.
