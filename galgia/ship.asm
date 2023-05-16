@@ -153,7 +153,7 @@ ship_bullet_handler:
 	je .bug_loop_skip ; no collision
 	push bx
 	movzx bx,[player_current]
-	cmp byte [stage+bx],8 ; above or equal to level 8?
+	cmp byte [stage+bx],boss_stage ; above or equal to boss level?
 	pop bx
 	jae .bug_loop_one_hit_skip ; if so, bug type 0 requires multiple hits
 	cmp byte [bug_type+bx],0 ; otherwise, make sure bug type isn't 0 before doing the multiple hit check

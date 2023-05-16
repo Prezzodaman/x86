@@ -45,7 +45,6 @@ game:
 	
 	call bgl_escape_exit_fade
 	call bgl_joypad_handler
-	;call blaster_mix_retrace
 	call bgl_wait_retrace
 	call bgl_write_buffer
 	jmp .loop
@@ -115,19 +114,27 @@ game_handler:
 	cmp byte [stage_delay],150
 	jne .skip
 	mov byte [stage_delay],0 ; maximum stage delay reached, stage has begun
+	movzx bx,[player_current]
+	cmp byte [bugs_shot+bx],bug_amount-1 ; more than one bug on screen?
+	je .bugs_shot_skip
+	cmp byte [boss],0 ; boss level?
+	jne .bugs_shot_skip ; don't play bug sound
 	mov si,bugs_sfx
 	mov cx,bugs_sfx_length
 	mov al,3
 	mov ah,1
 	mov bx,0
 	call blaster_mix_play_sample
+.bugs_shot_skip:
 	mov byte [stage_started],1
-	cmp byte [boss],0
+	cmp byte [boss],0 ; if it's a boss level, skip bug init
 	je .boss_skip
 	jmp .skip
 .boss_skip:
 	movzx bx,[player_current]
 	shl bx,1
+	cmp byte [player_2_mode],0
+	je .skip
 	cmp byte [bugs_shot+bx],0
 	jne .skip
 	call bugs_init
@@ -239,13 +246,13 @@ hud_draw:
 	call bgl_draw_font_number
 	
 	mov word [bgl_x_pos],130
-	mov word [bgl_buffer_offset],bgl_get_font_offset("H",font_gfx)
+	mov word [bgl_buffer_offset],bgl_get_font_offset("H",font_gfx)-font_reduction
 	call bgl_draw_gfx_fast
 	add word [bgl_x_pos],8
-	mov word [bgl_buffer_offset],bgl_get_font_offset("I",font_gfx)
+	mov word [bgl_buffer_offset],bgl_get_font_offset("I",font_gfx)-font_reduction
 	call bgl_draw_gfx_fast
 	add word [bgl_x_pos],8
-	mov word [bgl_buffer_offset],bgl_get_font_offset(":",font_gfx)
+	mov word [bgl_buffer_offset],bgl_get_font_offset(":",font_gfx)-font_reduction
 	call bgl_draw_gfx_fast
 	mov eax,[high_score]
 	call bgl_draw_font_number
@@ -297,7 +304,7 @@ boss_text db "BOSS",0
 
 boom_sfx: incbin "boom.raw"
 boom_sfx_length equ $-boom_sfx
-lazer_sfx: incbin "lazer.raw" ; xtreme kool letterz
+lazer_sfx: incbin "shoot_noise.raw" ; xtreme kool letterz
 lazer_sfx_length equ $-lazer_sfx
 bug_sfx: incbin "bug.raw" ; nicked from space invaders, very naughty ;)
 bug_sfx_length equ $-bug_sfx

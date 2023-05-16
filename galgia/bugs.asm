@@ -153,12 +153,12 @@ bugs_bomb_handler:
 	cmp byte [stage_started],0
 	je .end_actual
 	inc byte [bug_bomb_delay]
-	mov ax,180
+	mov ax,210
 	movzx cx,[stage] ; higher stage, more frequent bomb droppage
 	shl cx,1
 	sub ax,cx
 	call random_range
-	add ax,40
+	add ax,30
 	cmp byte [bug_bomb_delay],al
 	jne .bombs ; haven't reached delay yet, handle bombs as normal
 	mov byte [bug_bomb_delay],0
@@ -234,6 +234,7 @@ bugs_bomb_handler:
 	cmp byte [ship_exploding],0
 	jne .bombs_skip
 	call ship_explode
+	mov byte [boss_music_playing],0
 .bombs_skip:
 	add word [bug_bomb_y+bx],bug_bomb_speed
 	cmp word [bug_bomb_y+bx],200 ; reached bottom of screen?
@@ -497,41 +498,38 @@ bugs_handler:
 	cmp byte [ship_exploding],0
 	jne .flying_skip
 	call ship_explode
+	mov byte [boss_music_playing],0
 	
 .flying_skip:
 	cmp byte [boss],0 ; boss active?
 	jne .boss ; skip all side-to-side movements and edge checks
 
+	cmp byte [bug_flying_looping+bx],0 ; looping?
+	jne .x_check_3 ; if so, skip rotational edge checks
 	; rotate bug if it's too close to the left or right edge...
 	cmp word [bug_x+bx],bug_left_edge
 	jg .x_check_2
-	cmp word [bug_angle+bx],bug_down_angle ; make sure it always ends up facing down (up facing down, huhuhuhuh)
-	jg .x_check_skip
-	add word [bug_angle+bx],bug_flying_add ; close to left, add
+	add word [bug_angle+bx],bug_flying_add>>1 ; close to left, add
 	;add word [bug_x+bx],2<<bug_precision
-	dec word [bug_flying_timer]
-	jmp .x_check_skip
+	jmp .x_check_3
 .x_check_2:
 	cmp word [bug_x+bx],bug_right_edge ; not close to the left, check the right
-	jl .x_check_skip
-	cmp word [bug_angle+bx],0-bug_down_angle
-	jl .x_check_skip
-	sub word [bug_angle+bx],bug_flying_add ; close to right, subtract
+	jl .x_check_3
+	sub word [bug_angle+bx],bug_flying_add>>1 ; close to right, subtract
 	;sub word [bug_x+bx],2<<bug_precision
-	dec word [bug_flying_timer]
-	jmp .x_check_skip
 .x_check_3:
-	cmp word [bug_x+bx],0-bug_width ; bug way out of left bounds?
+	cmp word [bug_x+bx],0-(bug_width<<bug_precision) ; bug way out of left bounds?
 	jg .x_check_4 ; if not, skip
 	mov byte [bug_flying_reset+bx],1 ; reset bug
+	mov word [bug_y+bx],(0-bug_height)<<bug_precision ; move to top of screen
 	mov word [bug_angle+bx],0
 	jmp .x_check_skip
 .x_check_4:
-	cmp word [bug_x+bx],320+bug_width ; bug way out of right bounds?
+	cmp word [bug_x+bx],(320+bug_width)<<bug_precision ; bug way out of right bounds?
 	jl .x_check_skip ; if not, skip
 	mov byte [bug_flying_reset+bx],1 ; reset bug
+	mov word [bug_y+bx],(0-bug_height)<<bug_precision ; move to top of screen
 	mov word [bug_angle+bx],0
-	jmp .x_check_skip
 .x_check_skip:
 	mov ax,[bug_x_vel+bx]
 	cmp byte [bug_type+bx],0
@@ -544,6 +542,16 @@ bugs_handler:
 	sar ax,bug_flying_speed
 	add word [bug_y+bx],ax
 	
+	cmp word [bug_angle+bx],-360 ; constrain angle values
+	jg .angle_skip
+	mov word [bug_angle+bx],360
+	jmp .flying_angle
+.angle_skip:
+	cmp word [bug_angle+bx],360
+	jl .flying_angle
+	mov word [bug_angle+bx],-360
+	
+.flying_angle:
 	;mov ax,5
 	;call random_range ; this is such a fun function :D
 	;movzx cx,[bug_type+bx]
@@ -554,7 +562,7 @@ bugs_handler:
 	shl cx,1 ; the higher the stage, the faster bugs will start to fly
 	sub ax,cx
 	cmp word [bug_flying_timer+bx],ax ; reached end of sequence?
-	jge .flying_angle_skip ; if so, do nothing
+	jge .flying_angle_ended ; if so, do nothing
 	inc word [bug_flying_timer+bx] ; do all the conditional angle stuff
 	mov ax,60
 	movzx cx,[bug_type+bx] ; higher bug type, less time
@@ -587,10 +595,14 @@ bugs_handler:
 	jl .flying_angle_subtract2
 	cmp byte [bug_flying_loop+bx],0
 	je .flying_angle_skip
+	mov byte [bug_flying_looping+bx],1
 	add word [bug_angle+bx],bug_flying_subtract
 	jmp .flying_angle_skip
 .flying_angle_subtract2:
 	sub word [bug_angle+bx],bug_flying_subtract
+	jmp .flying_angle_skip
+.flying_angle_ended:
+	mov byte [bug_flying_looping+bx],0
 .flying_angle_skip:
 	cmp word [bug_y+bx],(0-bug_height)<<bug_precision ; bug reached top of screen?
 	jg .flying_angle_skip2 ; if not, continue
@@ -607,6 +619,16 @@ bugs_handler:
 	je .flying_angle_reset_skip ; if so, skip the reset
 	mov byte [bug_flying_reset+bx],1 ; bug is resetting
 	mov word [bug_angle+bx],0
+	jmp .flying_angle_reset_skip
+.flying_angle_skip3:
+	cmp word [bug_y+bx],20<<bug_precision ; bug NEAR the top of the screen?
+	jg .loop_end ; if not, continue
+	cmp word [bug_angle+bx],0 ; angle negative?
+	jl .flying_angle_skip4 ; if so, subtract
+	add word [bug_angle+bx],bug_flying_subtract ; otherwise, add
+	jmp .flying_angle_reset_skip
+.flying_angle_skip4:
+	sub word [bug_angle+bx],bug_flying_subtract
 .flying_angle_reset_skip:
 	cmp byte [ship_exploding],0 ; ship exploding?
 	je .flying_angle_reset_skip2 ; if not, skip reset
@@ -644,7 +666,9 @@ bugs_handler:
 	jl .loop_end ; haven't reached initial y, skip to end
 	mov byte [bug_flying_reset+bx],0
 	mov word [bug_flying_timer+bx],0
+	mov byte [bug_flying_looping+bx],0
 	mov byte [bug_flying+bx],0
+	mov ax,[bug_x_start_i+bx]
 	movsx ax,[bug_x_offset]
 	add ax,[bug_x_start_i+bx]
 	mov word [bug_x+bx],ax
@@ -716,6 +740,7 @@ bugs_handler:
 	call random
 	and al,1
 	mov byte [bug_flying_loop+bx],al
+	mov byte [bug_flying_looping+bx],0
 	
 	push bx
 	push ecx
@@ -783,10 +808,10 @@ bug_flying_subtract equ 3
 bug_left_edge equ 60<<bug_precision
 bug_right_edge equ (320-(bug_left_edge>>bug_precision)-bug_width)<<bug_precision
 bug_down_angle equ 50
-bugs_shot_lives_amount equ 200 ; how many shot bugs until the player gets an extra life?
+bugs_shot_lives_amount equ 120 ; how many shot bugs until the player gets an extra life?
 
 bug_bomb_amount equ 3
-bug_bomb_speed equ 3
+bug_bomb_speed equ 2
 
 bug_bomb_active times bug_bomb_amount dw 0
 bug_bomb_x times bug_bomb_amount dw 0
@@ -811,7 +836,8 @@ bug_angle times bug_amount dw 0
 bug_angle_initial times bug_amount dw 0
 bug_flying times bug_amount dw 0
 bug_flying_timer times bug_amount dw 0 ; increases, when it reaches a certain amount, the angle stops getting added to
-bug_flying_loop times bug_amount dw 0
+bug_flying_loop times bug_amount dw 0 ; this means the bug is GOING TO loop
+bug_flying_looping times bug_amount dw 0 ; this means the bug IS looping
 bug_shot times bug_amount*2 dw 0
 bug_hits times bug_amount*2 dw 0 ; for bugs that require multiple hits
 bug_flying_reset times bug_amount dw 0 ; is it resetting after flying? (in other words, has it reached the bottom of the screen while flying)

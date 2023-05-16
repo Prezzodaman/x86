@@ -17,7 +17,7 @@ boss_check: ; checks if this level's a boss level or not, if so, initializes the
 	movzx bx,[player_current]
 	shl bx,1
 	cmp byte [bugs_shot+bx],0 ; any bugs shot?
-	jne .end ; if so, don't initialize bugs
+	je .end ; if so, don't initialize bugs
 	call bugs_init
 .end:
 	pop dx
@@ -118,7 +118,7 @@ boss_music_handler:
 	cmp byte [boss_music_playing],0
 	je .end
 	inc byte [boss_music_delay]
-	cmp byte [boss_music_delay],(boss_music_section_length/2)/blaster_mix_buffer_size
+	cmp byte [boss_music_delay],(boss_music_section_length*2)/blaster_mix_buffer_size
 	jb .end
 	mov byte [boss_music_delay],0
 	inc byte [boss_music_state]
@@ -410,7 +410,7 @@ boss_music_6_name db "boss4.raw",0
 boss_music_playing db 0
 boss_music_delay db 0
 boss_music_state db 0
-boss_music
+boss_music:
 	db 0,-1,0,-1
 	db 0,-1,1,-1
 	db 0,-1,0,-1
