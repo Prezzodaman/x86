@@ -315,12 +315,17 @@ ship_handler:
 	cmp byte [player_2_mode],0 ; 2 player mode?
 	je .lives_flying_delay ; if not, skip all the alternating code
 	call players_alternate
+	call boss_check
+	cmp byte [player_2_started],0 ; player 2's first go?
+	jne .lives_init_skip ; if not, skip init
+	mov byte [player_2_started],1
+	call bugs_init
+	mov byte [bugs_drawn],0
+.lives_init_skip:
 	movzx bx,[player_current]
 	mov byte [stage_started],0 ; restart stage
 	mov byte [stage_delay],0
 	mov byte [stage_started_delay],0
-	mov byte [player_2_started],1
-	shl bx,1
 	cmp byte [bugs_shot+bx],0 ; any bugs shot?
 	jne .lives_flying_delay ; if so, don't stop the sound effect
 	mov al,3

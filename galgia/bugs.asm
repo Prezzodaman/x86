@@ -1,5 +1,15 @@
 ; there'll be plenty of these phwwoaaaa let me tell ya
 
+bugs_init_check:
+	push bx
+	movzx bx,[player_current]
+	cmp byte [bugs_shot+bx],0 ; any bugs shot for this player?
+	jne .end ; at least one bug is shot, skip init
+	call bugs_init
+.end:
+	pop bx
+	ret
+	
 bugs_player_loop_offset:
 	; this is a super ultra hyper mega specialized function. for certain arrays, there are 2 sets, one for each player. loops use bx as the offset for the current bug. this changes the offset of bx depending on the current player. remember to push bx before calling, and pop afterwards.
 	; told you it was specialized :P
@@ -26,14 +36,6 @@ bugs_add_score:
 	jne .end
 	mov byte [bugs_shot_lives+bx],0
 	inc byte [player_lives+bx]
-	push bx
-	xor bx,bx
-	mov al,0
-	mov ah,0
-	mov si,bester_sfx
-	mov cx,bester_sfx_length
-	call blaster_mix_play_sample
-	pop bx
 .end:
 	pop bx
 	pop cx

@@ -56,6 +56,7 @@ players_alternate:
 	jne .start ; if so, skip
 	jmp title_screen ; neither player has any lives
 .start:
+	mov word [bug_flying_timer],0
 	cmp byte [player_current],0 ; one occasion where a not isn't the best option here!
 	je .p2
 	cmp byte [player_lives],0 ; player 1 have any lives left?
@@ -160,7 +161,9 @@ game_handler:
 	mov byte [stage_started_delay],0
 	mov byte [stage_started],0
 	mov byte [stage_delay],0
+	call bugs_init
 	mov byte [bugs_shot+bx],0
+	movzx bx,[player_current]
 	inc byte [stage+bx]
 	call boss_check
 	jmp .end
@@ -178,6 +181,7 @@ game_handler:
 	mov byte [stage_started_delay],0
 	call ship_init
 	call players_alternate
+	call bugs_init_check
 	call boss_check
 	cmp byte [boss],0
 	je .end
@@ -195,7 +199,7 @@ hud_draw:
 	mov word [bgl_y_pos],70
 	mov word [bgl_font_string_offset],stage_text
 	call bgl_draw_font_string
-	add word [bgl_x_pos],8*5
+	add word [bgl_x_pos],8*6
 	
 	movzx bx,[player_current]
 	movzx eax,byte [stage+bx]
@@ -236,7 +240,7 @@ hud_draw:
 	mov word [bgl_buffer_offset],bgl_get_font_offset(":",font_gfx)-font_reduction
 	call bgl_draw_gfx_fast
 	
-	mov word [bgl_x_pos],8*3
+	mov word [bgl_x_pos],8*4
 	xor cx,cx ; amount of digits to draw
 	movzx bx,[player_current]
 	shl bx,2 ; dword length
@@ -254,6 +258,7 @@ hud_draw:
 	add word [bgl_x_pos],8
 	mov word [bgl_buffer_offset],bgl_get_font_offset(":",font_gfx)-font_reduction
 	call bgl_draw_gfx_fast
+	add word [bgl_x_pos],8
 	mov eax,[high_score]
 	call bgl_draw_font_number
 	
@@ -308,8 +313,6 @@ lazer_sfx: incbin "shoot_noise.raw" ; xtreme kool letterz
 lazer_sfx_length equ $-lazer_sfx
 bug_sfx: incbin "bug.raw" ; nicked from space invaders, very naughty ;)
 bug_sfx_length equ $-bug_sfx
-bester_sfx: incbin "bester_11.raw"
-bester_sfx_length equ $-bester_sfx
 explosion_sfx_name db "explode.raw",0
 explosion_sfx_length equ 34622
 bugs_sfx: incbin "bugs.raw"

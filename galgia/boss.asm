@@ -14,11 +14,6 @@ boss_check: ; checks if this level's a boss level or not, if so, initializes the
 	jmp .end
 .not_boss:
 	mov byte [boss],0
-	movzx bx,[player_current]
-	shl bx,1
-	cmp byte [bugs_shot+bx],0 ; any bugs shot?
-	je .end ; if so, don't initialize bugs
-	call bugs_init
 .end:
 	pop dx
 	pop bx
@@ -118,7 +113,7 @@ boss_music_handler:
 	cmp byte [boss_music_playing],0
 	je .end
 	inc byte [boss_music_delay]
-	cmp byte [boss_music_delay],(boss_music_section_length*2)/blaster_mix_buffer_size
+	cmp byte [boss_music_delay],(22*4)+1
 	jb .end
 	mov byte [boss_music_delay],0
 	inc byte [boss_music_state]
