@@ -73,3 +73,11 @@ word_to_dword: ; input: ax, output: eax
 	add eax,edx
 	pop edx
 	ret
+	
+get_bit_value: ; input: al, result: al
+	push cx
+	mov cl,al
+	mov al,1
+	shl al,cl
+	pop cx
+	ret

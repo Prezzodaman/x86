@@ -21,10 +21,10 @@ Identical to **bgl_draw_gfx**, but optimized for speed. Because of this, **bgl_f
 ## bgl_draw_gfx_scale
 Draws a *scaled* graphic to the BGL's buffer!! It uses all the same parameters as **bgl_draw_gfx**, with the addition of the following parameters:
 
--- **bgl_scale_x** - The horizontal scale (dword)
--- **bgl_scale_y** - The vertical scale (dword)
--- **bgl_scale_centre** - If set, this scale from the centre point instead of the top-left corner (byte)
--- **bgl_scale_square** - If set, scaling will be linear (byte)
+- **bgl_scale_x** - The horizontal scale (dword)
+- **bgl_scale_y** - The vertical scale (dword)
+- **bgl_scale_centre** - If set, this scales from the centre point instead of the top-left corner (byte)
+- **bgl_scale_square** - If set, scaling will be linear (byte)
 
 Higher scale values make the graphic smaller, and negative scale values make it bigger. The largest positive scale value is 32. 32-bit values are required so the graphic can be scaled to extremely small sizes!
 
@@ -61,6 +61,9 @@ Draws an RLE encoded full-screen graphics file to the BGL's graphics buffer, usi
 ## bgl_flood_fill
 Fills the entirety of the BGL's graphics buffer with a colour specified by **al**. Useful as a "clear screen" command for clearing up previously drawn graphics. Specify the start offset using **di**, and the end offset using **cx**.
 
+## bgl_flood_fill2
+Fills a portion of the BGL's graphics buffer with a colour specified by **al**, where **di** is the start offset \* 2, and **cx** is the amount of pixels \* 2.
+
 ## bgl_flood_fill_fast
 Identical to **bgl_flood_fill**, but writes 2 bytes at a time instead. This is the safest bet, as it's a good balance between speed and stability.
 
@@ -68,18 +71,21 @@ Identical to **bgl_flood_fill**, but writes 2 bytes at a time instead. This is t
 Fills the entire graphics buffer with a single colour, specified by **al**. This writes 4 bytes at a time, so it's extremely fast, but can interfere with other functions.
 
 ## bgl_draw_box
-Draws a rectangle to the grapics buffer, with **al** specifying the colour. Parameters are passed using the following memory locations:
+Draws a rectangle to the graphics buffer, with **al** specifying the colour. Parameters are passed using the following memory locations:
 
 - **bgl_x_pos** - X position to draw the box (word)
 - **bgl_y_pos** - Y position to draw the box (word)
 - **bgl_width** - The width of the box (byte)
 - **bgl_height** - The height of the box (byte)
 
+## bgl_draw_chunky_pixel
+Draws a 2x2 block on the screen at offset **di**, using colour **al**. Used internally for the collision debugging feature, but could be useful on its own!
+
 ## bgl_draw_box_fast
-Identical to **bgl_draw_box**, but skips all boundary checks, and treats the width and height as multiples of 4.
+Identical to **bgl_draw_box**, but skips all boundary checks, and treats the width and height as multiples of 4 (for example, 0-3 will draw 4 pixels, 4-7 will draw 8, etc). Support for **bgl_mask** is also removed.
 
 ## bgl_blaster_visualize
-If you're using the Sound Blaster library, this draws a visualization of the sound to the BGL's buffer, similar to an oscilloscope. The library is automatically detected, as is the sample rate.
+If you're using the Sound Blaster library, this draws a visualization of the sound to the BGL's buffer, similar to an oscilloscope. The library is automatically detected, as is the sample rate. The colour to use is specified by **al**.
 
 # Fonts
 
@@ -124,7 +130,7 @@ Identical to **bgl_get_gfx_pixel**, but grabs a pixel from the graphics buffer i
 
 # Palette
 ## bgl_fade_in
-Fades the palette in from black. It looks a bit weird, but it probably won't get fixed because fading's here anyway!
+Fades the palette in from black.
 ## bgl_fade_out
 Fades the palette out to black.
 ## bgl_get_orig_palette
@@ -147,6 +153,9 @@ Performs a simple box check between two sprites. Parameters are passed using the
 - **bgl_collision_y2** - Y position of the second sprite (word)
 - **bgl_collision_w2** - Width of the second sprite (word)
 - **bgl_collision_h2** - Height of the second sprite (word)
+- **bgl_collision_debug** - If set, this will draw points representing each of the collision boxes (byte)
+- **bgl_collision_c1** - The colour of the first collision box (byte)
+- **bgl_collision_c2** - The colour of the second collision box (byte)
 
 If the two boxes intersect, the byte **bgl_collision_flag** will be set to 1, otherwise it'll be set to 0.
 
@@ -160,6 +169,9 @@ Checks if a single point is inside a sprite, useful for checking against the mou
 - **bgl_collision_y2** - Y position of the point (word)
 - **bgl_collision_w2** - Unused
 - **bgl_collision_h2** - Unused
+- **bgl_collision_debug** - If set, this will draw points representing the collision box and the collision point (byte)
+- **bgl_collision_c1** - The colour of the collision box (byte)
+- **bgl_collision_c2** - The colour of the collision point (byte)
 
 If the point is anywhere inside the sprite, the byte **bgl_collision_flag** will be set to 1, otherwise it'll be set to 0.
 
@@ -196,6 +208,10 @@ Finds the sine of value **ax** using a lookup table, and puts the result into **
 Finds the cosine of value **ax** using a lookup table, and puts the result into **ax**.
 ## bgl_square
 Finds the square of value **eax**, and puts the result into **eax**. Used internally for **bgl_draw_gfx_scale**, but can be used elsewhere!
+## bgl_spread_8_16/bgl_spread_16_32/bgl_spread_8_32
+"Spreads" a value across register **al**, **ax** or **eax**. For example, if **bgl_spread_8_16** is used and **al** contains 12h, **ax** will contain 1212h. If **bgl_spread_16_32** and **ax** contains 1234h, **eax** will contain 12341234h. This is used for drawing multiple of the same index using different word lengths.
+## bgl_extend_8_16/bgl_extend_16_32/bgl_extend_8_32
+Sign extends a value in register **al**, **ax** or **eax**. For example, this can be used when you have a negative 8-bit value, and need to use it with a 16-bit register. In this case **al** will contain the original value, and **ax** wil contain the result.
 
 # Miscellaneous
 ## bgl_intro

@@ -46,15 +46,14 @@ blaster_dma_offset dw 0
 
 ; multi-voice sample mixing (default 4)
 
-blaster_mix_75hz equ 624 ; still trying to find a formula!
+blaster_mix_70hz equ 624 ; still trying to find a formula!
 blaster_mix_60hz equ 731
 blaster_mix_30hz equ 1420
 blaster_mix_20hz equ 2203
 blaster_mix_18hz equ 2414
 %ifndef blaster_buffer_size_custom
-	blaster_mix_buffer_base_length equ blaster_mix_75hz
+	blaster_mix_buffer_base_length equ blaster_mix_70hz
 %endif
-blaster_mix_buffer_multiplier equ 1
 %ifdef blaster_mix_1_voice
 	%define blaster_mix_custom_voices
 	blaster_mix_voices_shift equ 0 ; one voice, no need to shift
@@ -71,7 +70,7 @@ blaster_mix_buffer_multiplier equ 1
 	blaster_mix_voices_shift equ 2 ; = 1<<2=4 voices
 %endif
 blaster_mix_voices equ 1<<blaster_mix_voices_shift
-blaster_mix_buffer_size_base equ ((blaster_mix_buffer_base_length/4)*blaster_mix_buffer_multiplier)+1
+blaster_mix_buffer_size_base equ (blaster_mix_buffer_base_length/4)+1
 %ifdef blaster_mix_rate_11025
 	%define blaster_mix_rate 11025
 	blaster_mix_buffer_size equ blaster_mix_buffer_size_base
@@ -93,17 +92,51 @@ blaster_mix_buffer_size_base equ ((blaster_mix_buffer_base_length/4)*blaster_mix
 blaster_mix_buffer resb blaster_mix_buffer_size
 blaster_mix_sample_offset resd blaster_mix_voices
 blaster_mix_sample_position resd blaster_mix_voices
+blaster_mix_sample_loop_start resd blaster_mix_voices
+blaster_mix_sample_loop_end resd blaster_mix_voices
 blaster_mix_sample_length resd blaster_mix_voices
 blaster_mix_sample_byte resb blaster_mix_voices ; the value of the current byte of each sample (for the programmer's use)
 blaster_mix_voice_loops resd blaster_mix_voices ; how many times has a voice looped? (not used internally, but for the programmer's use)
 blaster_mix_stream_file_pointer resd blaster_mix_voices
 blaster_mix_stream_file_handle resd blaster_mix_voices
-blaster_mix_stream_file_buffer resb blaster_mix_buffer_size
+blaster_mix_stream_file_buffer db 0 ; that's a huge buffer
 blaster_mix_sample_playing db 0 ; bunch of bit states. because it's a byte, it allows for up to 8 voices
 blaster_mix_sample_looping db 0 ; same goes for this
-blaster_mix_sample_streaming db 0
+blaster_mix_sample_streaming db 0 ; and this
+blaster_mix_sample_signed db 0 ; and this
+blaster_mix_sample_scale_frac resd blaster_mix_voices ; fractional part
+blaster_mix_sample_scale_whole resd blaster_mix_voices ; whole part
+blaster_mix_sample_scale_count resd blaster_mix_voices
+blaster_mix_sample_volume times blaster_mix_voices db 255
 
-blaster_buffer times blaster_buffer_size db 0
+blaster_buffer resb blaster_buffer_size
+
+blaster_get_scale: ; ax = sample rate, bx = voice
+	push eax
+	push ebx
+	push edx
+	
+	shl eax,16
+	shr eax,16
+	shl bx,2
+	push bx ;
+	xor edx,edx
+	mov ebx,blaster_mix_rate
+	div ebx ; sample rate / mix rate
+	pop bx ;
+	mov dword [blaster_mix_sample_scale_whole+bx],eax
+	push bx ;
+	mov eax,edx ; put remainder into eax
+	shl eax,16
+	mov ebx,blaster_mix_rate
+	div ebx ; ((sample rate % mix rate)<<16)/mix rate
+	pop bx ;
+	mov dword [blaster_mix_sample_scale_frac+bx],eax
+	
+	pop edx
+	pop ebx
+	pop eax
+	ret
 
 blaster_interrupt_handler:
 	call blaster_mix_calculate
@@ -144,7 +177,20 @@ blaster_mix_stop_sample: ; al = voice number
 	pop cx
 	ret
 
-blaster_mix_play_sample: ; al = voice number, ah = looping (0 or 1), bx = streaming, si = sample/pointer to filename, cx = length
+blaster_mix_play_sample: ; al = voice number, ah = looping (0 or 1), bl = streaming, bh = signed, si = sample/pointer to filename, cx = length, dx = sample rate
+	push ax
+	push bx
+	xor bh,bh
+	mov bl,al
+	mov ax,dx
+	call blaster_get_scale
+	pop bx
+	pop ax
+	
+	cmp dword [blaster_mix_sample_scale_frac+bx],0
+	je .skip
+	mov dx,blaster_mix_rate
+.skip:
 	push dx
 	push bx ;
 	cmp cx,65535 ; backwards compatibility - check if length is 16-bit
@@ -158,11 +204,13 @@ blaster_mix_play_sample: ; al = voice number, ah = looping (0 or 1), bx = stream
 	mov word [blaster_mix_sample_offset+bx],si
 	mov dword [blaster_mix_sample_position+bx],0
 	mov dword [blaster_mix_sample_length+bx],ecx
+	mov dword [blaster_mix_sample_loop_end+bx],ecx
+	mov dword [blaster_mix_sample_loop_start+bx],0
 	mov word [blaster_mix_voice_loops+bx],0
 	mov cl,al
 	mov al,1
 	shl al,cl
-	pop bx ; get streaming flag back
+	pop bx ; get streaming/signed flag back
 	or byte [blaster_mix_sample_playing],al
 	
 	mov al,1
@@ -171,13 +219,23 @@ blaster_mix_play_sample: ; al = voice number, ah = looping (0 or 1), bx = stream
 	jne .looping_skip ; if so, set bit
 	xor al,11111111b ; clear bit
 	and byte [blaster_mix_sample_looping],al
-	jmp .streaming
+	jmp .signed
 .looping_skip:
 	or byte [blaster_mix_sample_looping],al
+.signed:
+	mov al,1
+	shl al,cl
+	cmp bh,0 ; signed?
+	jne .signed_skip ; if so, set bit
+	xor al,11111111b ; clear bit
+	and byte [blaster_mix_sample_signed],al
+	jmp .streaming
+.signed_skip:
+	or byte [blaster_mix_sample_signed],al
 .streaming:
 	mov al,1
 	shl al,cl
-	cmp bx,0 ; streaming?
+	cmp bl,0 ; streaming?
 	jne .streaming_skip ; if so, set bit
 	xor al,11111111b ; clear bit
 	and byte [blaster_mix_sample_streaming],al
@@ -198,6 +256,15 @@ blaster_mix_play_sample: ; al = voice number, ah = looping (0 or 1), bx = stream
 	jc .error
 	pop bx ; pushed from dx, popped into bx to use as an offset
 	mov word [blaster_mix_stream_file_handle+bx],ax
+	xor cx,cx ; offset msb
+	xor dx,dx ; offset lsb
+	mov ah,42h ; move pointer to end of file
+	mov al,2
+	int 21h ; new pointer location in dx:ax
+	shl edx,16 ; convert dx:ax to eax
+	or eax,edx
+	mov dword [blaster_mix_sample_length+bx],eax
+	mov dword [blaster_mix_sample_loop_end+bx],eax
 	jmp .end
 .error:
 	mov ax,3
@@ -241,7 +308,9 @@ blaster_mix_play_sample: ; al = voice number, ah = looping (0 or 1), bx = stream
 	int 21h
 	
 %ifdef bgl
+%ifndef bgl_no_keys
 	call bgl_restore_key_handler
+%endif
 %endif
 
 	mov ah,4ch
@@ -334,15 +403,41 @@ blaster_mix_calculate:
 .not_streaming:
 	add esi,[blaster_mix_sample_position+bx] ; get offset of sample into si
 	mov al,[esi] ; get sample value from offset si
+	push ax
+	mov cl,bl
+	shr cl,2 ; dword to byte
+	mov al,1
+	shl al,cl ; al will contain 1, 2, 4, 8, etc...
+	test byte [blaster_mix_sample_signed],al ; current sample signed?
+	pop ax
+	jz .signed_skip ; if not, continue
+	add al,128
+.signed_skip:
+	
 	shr bx,2
 	mov byte [blaster_mix_sample_byte+bx],al
 	shl bx,2
 .streaming_skip:
+	xor dx,dx
+	shr bx,2
+	mul byte [blaster_mix_sample_volume+bx] ; scale according to the volume
+	mov al,ah
+	mov ah,[blaster_mix_sample_volume+bx]
+	shr ah,1
+	add ah,128
+	sub al,ah
+	shl bx,2
+
 	shr al,blaster_mix_voices_shift ; divide by the amount of voices
 	add byte [blaster_mix_buffer+di],al
-	mov eax,[blaster_mix_sample_length+bx]
-	inc dword [blaster_mix_sample_position+bx] ; go to next byte in the sample!
-	cmp dword [blaster_mix_sample_position+bx],eax ; reached end of sample?
+	
+	mov eax,[blaster_mix_sample_scale_frac+bx] ; fractional sample stepping
+	add dword [blaster_mix_sample_scale_count+bx],eax ; if the addition overflows, the carry will be set
+	mov eax,[blaster_mix_sample_position+bx]
+	adc eax,[blaster_mix_sample_scale_whole+bx] ; add WITH CARRY! so if the previous addition overflowed, this will add an extra one!
+	mov dword [blaster_mix_sample_position+bx],eax ; go to next byte in the sample!
+	mov eax,[blaster_mix_sample_loop_end+bx]
+	cmp dword [blaster_mix_sample_position+bx],eax ; reached end of loop?
 	jb .voice_end ; if not, skip
 	; reached end of sample, but are we looping?
 	
@@ -352,7 +447,8 @@ blaster_mix_calculate:
 	shl al,cl
 	test byte [blaster_mix_sample_looping],al ; this is sample set to loop?
 	jz .not_looping
-	mov dword [blaster_mix_sample_position+bx],0 ; sample is looping, get it back to the beginning!
+	mov eax,[blaster_mix_sample_loop_start+bx]
+	mov dword [blaster_mix_sample_position+bx],eax ; sample is looping, get it back to the beginning!
 	inc byte [blaster_mix_voice_loops+bx]
 	jmp .voice_end
 	
@@ -369,17 +465,35 @@ blaster_mix_calculate:
 	mov byte [blaster_mix_sample_byte+bx],128
 	shl bx,2
 .voice_end:
+
 	add bx,4 ; next voice (4 because dword)
 	cmp bx,blaster_mix_voices*4
 	jb .voice_loop ; haven't reached the last voice yet...
 	inc di ; reached last voice, go to next byte in buffer
+%ifdef modlib
+	cmp byte [mod_playing],0 ; module playing?
+	je .length_skip ; compare against blaster buffer's size
+	cmp di,[mod_buffer_end]
+	jmp .length_skip2
+%endif
+.length_skip:
 	cmp di,blaster_mix_buffer_size
+.length_skip2:
 	jb .buffer_loop ; haven't reached end of buffer, reset voice value
 	
 	; reached end of buffer, all voices processed. now we need to copy to the sound blaster's actual buffer
 
 	mov si,blaster_mix_buffer
+
+%ifdef modlib
+	cmp byte [mod_playing],0 ; module playing?
+	je .length_skip3
+	mov cx,[mod_buffer_end]
+	jmp .length_skip4
+%endif
+.length_skip3:
 	mov cx,blaster_mix_buffer_size
+.length_skip4:
 	call blaster_fill_buffer
 	jmp .end
 	
@@ -394,7 +508,9 @@ blaster_mix_calculate:
 	int 21h
 	
 %ifdef bgl
+%ifndef bgl_no_keys
 	call bgl_restore_key_handler
+%endif
 %endif
 	
 	mov ah,4ch
@@ -436,10 +552,27 @@ blaster_start_playback:
 	
 	mov bl,14h ; dma command 14h: 8-bit single cycle output
 	call blaster_write_dsp
+%ifdef modlib
+	cmp byte [mod_playing],0
+	je .skip
+
+	mov bx,[mod_buffer_end]
+	dec bx
+	xor bh,bh
+	call blaster_write_dsp
+	
+	mov bx,[mod_buffer_end]
+	dec bx
+	shr bx,8
+	call blaster_write_dsp
+	jmp .end
+%endif
+.skip:
 	mov bl,(blaster_buffer_size-1) & 0ffh ; low byte
 	call blaster_write_dsp
 	mov bl,(blaster_buffer_size-1)>>8 ; high byte
 	call blaster_write_dsp
+.end:
 	
 	pop bx
 	ret

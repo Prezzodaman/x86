@@ -37,6 +37,9 @@ bgl_opaque db 0
 	bgl_collision_w2 dw 0
 	bgl_collision_h1 dw 0
 	bgl_collision_h2 dw 0
+	bgl_collision_debug db 0
+	bgl_collision_c1 db 0
+	bgl_collision_c2 db 0
 %endif
 %ifndef bgl_no_keys
 	bgl_key_states resb 128
@@ -87,6 +90,92 @@ bgl_mask db 0
 	bgl_joypad_states_1 db 00000000b
 	bgl_joypad_states_2 db 00000000b
 %endif
+
+%ifndef bgl_no_keys
+	bgl_key_escape equ 01h
+	bgl_key_1 equ 02h
+	bgl_key_2 equ 03h
+	bgl_key_3 equ 04h
+	bgl_key_4 equ 05h
+	bgl_key_5 equ 06h
+	bgl_key_6 equ 07h
+	bgl_key_7 equ 08h
+	bgl_key_8 equ 09h
+	bgl_key_9 equ 0ah
+	bgl_key_0 equ 0bh
+	bgl_key_minus equ 0ch
+	bgl_key_equals equ 0dh
+	bgl_key_backspace equ 0eh
+	bgl_key_tab equ 0fh
+	bgl_key_q equ 10h
+	bgl_key_w equ 11h
+	bgl_key_e equ 12h
+	bgl_key_r equ 13h
+	bgl_key_t equ 14h
+	bgl_key_y equ 15h
+	bgl_key_u equ 16h
+	bgl_key_i equ 17h
+	bgl_key_o equ 18h
+	bgl_key_p equ 19h
+	bgl_key_leftbracket equ 1ah
+	bgl_key_rightbracket equ 1bh
+	bgl_key_enter equ 1ch
+	bgl_key_control equ 1dh
+	bgl_key_a equ 1eh
+	bgl_key_s equ 1fh
+	bgl_key_d equ 20h
+	bgl_key_f equ 21h
+	bgl_key_g equ 22h
+	bgl_key_h equ 23h
+	bgl_key_j equ 24h
+	bgl_key_k equ 25h
+	bgl_key_l equ 26h
+	bgl_key_semicolon equ 27h
+	bgl_key_quote equ 28h
+	bgl_key_tilde equ 29h
+	bgl_key_lshift equ 2ah
+	bgl_key_backslash equ 2bh
+	bgl_key_z equ 2ch
+	bgl_key_x equ 2dh
+	bgl_key_c equ 2eh
+	bgl_key_v equ 2fh
+	bgl_key_b equ 30h
+	bgl_key_n equ 31h
+	bgl_key_m equ 32h
+	bgl_key_comma equ 33h
+	bgl_key_period equ 34h
+	bgl_key_slash equ 35h
+	bgl_key_rshift equ 36h
+	bgl_key_multiply equ 37h
+	bgl_key_alt equ 38h
+	bgl_key_space equ 39h
+	bgl_key_capslock equ 3ah
+	bgl_key_f1 equ 3bh
+	bgl_key_f2 equ 3ch
+	bgl_key_f3 equ 3dh
+	bgl_key_f4 equ 3eh
+	bgl_key_f5 equ 3fh
+	bgl_key_f6 equ 40h
+	bgl_key_f7 equ 41h
+	bgl_key_f8 equ 42h
+	bgl_key_f9 equ 43h
+	bgl_key_f10 equ 44h
+	bgl_key_numlock equ 45h
+	bgl_key_scrolllock equ 46h
+	bgl_key_home equ 47h
+	bgl_key_up equ 48h
+	bgl_key_pageup equ 49h
+	bgl_key_left equ 4bh
+	bgl_key_right equ 4dh
+	bgl_key_plus equ 4eh
+	bgl_key_end equ 4fh
+	bgl_key_down equ 50h
+	bgl_key_pagedown equ 51h
+	bgl_key_insert equ 52h
+	bgl_key_delete equ 53h
+	bgl_key_f11 equ 57h
+	bgl_key_f12 equ 58h
+%endif
 	
 %ifdef blaster
 bgl_blaster_visualize:
@@ -95,7 +184,7 @@ bgl_blaster_visualize:
 	push si
 	push di
 	
-	mov cx,-24
+	xor cx,cx
 	mov si,blaster_mix_buffer
 .loop:
 	cmp cx,0
@@ -105,11 +194,11 @@ bgl_blaster_visualize:
 	movzx dx,[si]
 	sub dx,28
 	call bgl_get_x_y_offset
-	mov byte [es:di],10
+	mov byte [es:di],al
 .skip:
 	inc cx
 %ifdef blaster_mix_rate_11025
-	add si,2
+	add si,1
 %endif
 %ifdef blaster_mix_rate_22050
 	add si,3
@@ -139,13 +228,17 @@ bgl_draw_box_fast:
 	call bgl_get_x_y_offset
 	xor cx,cx
 	xor dx,dx
+	call bgl_spread_8_32
 	
-	mov ah,al ; fill eax with al
-	push ax
-	shl eax,16
-	pop ax
+	cmp byte [bgl_width],4
+	jae .loop
+	mov byte [bgl_width],4
+	cmp byte [bgl_height],4
+	jae .loop
+	mov byte [bgl_height],4
 	
 .loop:
+	
 	push di
 	mov dword [es:di],eax
 	add di,320
@@ -159,17 +252,17 @@ bgl_draw_box_fast:
 	inc di
 	inc cl
 	mov bl,[bgl_width]
-	shr bl,2
+	sub bl,3
 	cmp cl,bl
-	jne .skip
+	jb .skip
 	xor cl,cl
 	add di,320
 	sub di,bx
 	inc dl
 	mov bl,[bgl_height]
-	shr bl,2
+	sub bl,3
 	cmp dl,bl
-	je .end
+	jae .end
 .skip:
 	jmp .loop
 .end:
@@ -207,7 +300,10 @@ bgl_draw_box:
 	cmp dx,0
 	jl .skip
 
+	push ax
+	call bgl_get_mask_value
 	mov byte [es:di],al
+	pop ax
 
 .skip:
 	inc di
@@ -229,6 +325,44 @@ bgl_draw_box:
 	pop dx
 	pop cx
 	pop bx
+	ret
+	
+bgl_spread_16_32: ; input = ax, output = eax
+	push ax
+	shl eax,16
+	pop ax
+	ret
+	
+bgl_spread_8_16: ; input = al, output = ax
+	mov ah,al
+	ret
+	
+bgl_spread_8_32:
+	call bgl_spread_8_16
+	call bgl_spread_16_32
+	ret
+	
+bgl_extend_8_16:
+	push dx
+	xor dx,dx
+	cbw
+	shl dx,8
+	add ax,dx
+	pop dx
+	ret
+	
+bgl_extend_16_32:
+	push edx
+	xor edx,edx
+	cwd
+	shl edx,16
+	add eax,edx
+	pop edx
+	ret
+	
+bgl_extend_8_32:
+	call bgl_extend_8_16
+	call bgl_extend_16_32
 	ret
 	
 %ifndef bgl_no_scale
@@ -292,7 +426,7 @@ bgl_get_cosine: ; value in ax, result in ax
 bgl_get_sine_255: ; value in ax, result in al
 	push bx
 	mov bx,ax
-	and bx,255 ; quick way of getting remainder, but limited to powers of 2
+	xor bh,bh ; quick way of getting remainder, but limited to 255
 	mov al,[wave_table_255+bx]
 	pop bx
 	ret
@@ -300,8 +434,8 @@ bgl_get_sine_255: ; value in ax, result in al
 bgl_get_cosine_255: ; value in ax, result in al
 	push bx
 	mov bx,ax
-	add bx,64
-	and bx,255
+	add bx,63
+	xor bh,bh
 	mov al,[wave_table_255+bx]
 	pop bx
 	ret
@@ -598,6 +732,7 @@ bgl_pseudo_fade:
 	ret
 	
 %ifndef bgl_no_rotate
+%ifndef bgl_no_wave
 bgl_draw_gfx_rotate:
 	; reference:
 	; https://www.codingame.com/playgrounds/2524/basic-image-manipulation/transformation
@@ -640,22 +775,22 @@ bgl_draw_gfx_rotate:
 	; get x and y centre points
 	
 	cmp byte [bgl_rotate_bounds],0
-	je .scale_skip
+	je .bounds_skip
 	movzx ax,[bgl_rotate_width]
 	shr ax,1
 	mov word [bgl_rotate_x_centre],ax
 	movzx ax,[bgl_rotate_height]
 	shr ax,1
 	mov word [bgl_rotate_y_centre],ax
-	jmp .scale_skip2
-.scale_skip:
+	jmp .bounds_skip2
+.bounds_skip:
 	movzx ax,[bgl_width]
 	shr ax,1
 	mov word [bgl_rotate_x_centre],ax
 	movzx ax,[bgl_height]
 	shr ax,1
 	mov word [bgl_rotate_y_centre],ax
-.scale_skip2:
+.bounds_skip2:
 	mov cx,[bgl_x_pos]
 	mov dx,[bgl_y_pos]
 	call bgl_get_x_y_offset
@@ -691,10 +826,7 @@ bgl_draw_gfx_rotate:
 	push bx
 	mov ax,[bgl_rotate_x_centre]
 	mov bx,360
-	cmp byte [bgl_rotate_scale],0
-	je .scale_skip8
 	sub bx,[bgl_scale_x]
-.scale_skip8:
 	mul bx
 	add cx,ax
 	pop bx
@@ -728,28 +860,21 @@ bgl_draw_gfx_rotate:
 	push bx
 	mov ax,[bgl_rotate_y_centre]
 	mov bx,360
-	cmp byte [bgl_rotate_scale],0
-	je .scale_skip7
 	sub bx,[bgl_scale_x]
-.scale_skip7:
 	mul bx
 	add cx,ax
 	pop bx
 	
-.scale_skip3:
 	mov word [bgl_rotate_y_adjusted],cx
 	
 	mov ax,[bgl_rotate_x_adjusted]
 	mov bx,360-1 ; maximum sine value, minus 1
-	cmp byte [bgl_rotate_scale],0
-	je .scale_skip4
 	sub bx,[bgl_scale_x]
-.scale_skip4:
 	xor dx,dx
 	div bx
 	mov cx,ax
 	cmp byte [bgl_rotate_bounds],0
-	je .scale_skip5
+	je .bounds_skip3
 	movzx ax,[bgl_rotate_width]
 	shr ax,1
 	push bx
@@ -758,14 +883,14 @@ bgl_draw_gfx_rotate:
 	sub ax,bx
 	pop bx
 	sub cx,ax
-.scale_skip5:
+.bounds_skip3:
 	
 	mov ax,[bgl_rotate_y_adjusted]
 	xor dx,dx
 	div bx
 	mov dx,ax
 	cmp byte [bgl_rotate_bounds],0
-	je .scale_skip6
+	je .bounds_skip4
 	movzx ax,[bgl_rotate_height]
 	shr ax,1
 	push bx
@@ -775,7 +900,7 @@ bgl_draw_gfx_rotate:
 	pop bx
 	sub dx,ax
 	
-.scale_skip6:
+.bounds_skip4:
 	call bgl_get_gfx_pixel
 	
 	movzx bx,[bgl_width]
@@ -797,7 +922,7 @@ bgl_draw_gfx_rotate:
 	pop bx
 	
 	cmp byte [bgl_no_bounds],0
-	jne .bounds_skip
+	jne .bounds_skip5
 	
 	push ax ; colour index
 	mov ax,[bgl_x_pos]
@@ -825,7 +950,7 @@ bgl_draw_gfx_rotate:
 	pop ax
 	jl .skip
 	
-.bounds_skip:
+.bounds_skip5:
 	cmp byte [bgl_opaque],0
 	jne .draw
 	cmp al,[bgl_transparent]
@@ -946,6 +1071,7 @@ bgl_draw_gfx_rotate_fast:
 	mov byte [bgl_rotate_y_counter],0
 	xor cx,cx
 	xor dx,dx
+	
 .loop:
 	push bx
 	
@@ -959,6 +1085,7 @@ bgl_draw_gfx_rotate_fast:
 	mov bx,cx
 	sub bx,[bgl_rotate_x_centre]
 	mov ax,[bgl_rotate_angle_cos] ; cos(angle)
+	inc ax ; weird fix for stupidness that i still don't understand
 	xor dx,dx
 	mul bx ; x*cos(angle)
 	mov cx,ax ; cx = x*cos(angle)
@@ -997,6 +1124,7 @@ bgl_draw_gfx_rotate_fast:
 	push bx
 	sub bx,[bgl_rotate_y_centre]
 	mov ax,[bgl_rotate_angle_cos] ; cos(angle)
+	inc ax ; seriously why does this work
 	xor dx,dx
 	mul bx ; y*cos(angle)
 	mov dx,ax ; dx = y*cos(angle)
@@ -1121,6 +1249,7 @@ bgl_draw_gfx_rotate_fast:
 	popa
 	ret
 %endif
+%endif
 	
 %ifndef bgl_no_scale
 bgl_draw_gfx_scale:
@@ -1132,12 +1261,6 @@ bgl_draw_gfx_scale:
 	push dword [bgl_scale_y]
 	pusha
 	
-	cmp dword [bgl_scale_x],0
-	jne .start
-	cmp dword [bgl_scale_y],0
-	jne .start
-	call bgl_draw_gfx
-	jmp .end
 .start:
 
 	xor edx,edx ; when dividing 16/32 bit numbers, dx is used as the "high register"
@@ -1151,16 +1274,29 @@ bgl_draw_gfx_scale:
 	mov byte [bgl_transparent],al
 	
 	cmp byte [bgl_scale_square],0
-	je .square_skip
+	je .square_skip5
 	mov eax,[bgl_scale_x]
+	cmp eax,0
+	jl .square_skip2
 	call bgl_square
 	sar eax,bgl_scale_precision
+	jmp .square_skip3
+.square_skip2:
+	sar eax,bgl_scale_precision/2
+.square_skip3:
 	mov dword [bgl_scale_x],eax
 	mov eax,[bgl_scale_y]
+	cmp eax,0
+	jl .square_skip4
 	call bgl_square
 	sar eax,bgl_scale_precision
-	mov dword [bgl_scale_y],eax
+	jmp .square_skip
+.square_skip4:
+	sar eax,bgl_scale_precision/2
 .square_skip:
+	mov dword [bgl_scale_y],eax
+.square_skip5:
+	
 	push ebx ; ebx is our temporary register here
 	
 	; get scale factor based off the width
@@ -1294,7 +1430,13 @@ bgl_draw_gfx_scale:
 	
 .draw:
 	add al,[bgl_tint]
+	push cx
+	push dx
+	add cx,[bgl_scale_width]
+	add dx,[bgl_scale_height]
 	call bgl_get_mask_value
+	pop dx
+	pop cx
 	mov byte [es:di],al
 .skip:
 	inc di
@@ -1338,11 +1480,13 @@ bgl_draw_gfx_scale:
 bgl_get_buffer_pixel:
 	push cx
 	push dx
+	push di
 	; input: cx, dx = x, y (of screen)
 	; output: al = pixel
 	; gets the value of a pixel from the bgl's buffer
 	call bgl_get_x_y_offset ; returns offset in di
 	mov al,[es:di] ; aHits ThaHat Easy! (tm)
+	pop di
 	pop dx
 	pop cx
 	ret
@@ -1904,15 +2048,113 @@ bgl_get_x_y_offset: ; result: offset in di - requires: cx to contain x, dx to co
     pop cx
 	ret
 	
+bgl_draw_chunky_pixel: ; colour in al, offset in di
+	push ax
+	push di
+	
+	call bgl_spread_8_16
+	mov word [es:di],ax
+	add di,320
+	mov word [es:di],ax
+	
+	pop di
+	pop ax
+	ret
+	
 %ifndef bgl_no_collision
+bgl_collision_debug_draw_1:
+	push ax
+	push cx
+	push dx
+	
+	mov al,[bgl_collision_c1]
+	call bgl_spread_8_16
+	
+	mov cx,[bgl_collision_x1]
+	mov dx,[bgl_collision_y1]
+	call bgl_get_x_y_offset
+	
+	call bgl_draw_chunky_pixel
+	add di,[bgl_collision_w1]
+	sub di,2 ; chunky pixel width
+	call bgl_draw_chunky_pixel
+	
+	mov cx,[bgl_collision_x1]
+	add dx,[bgl_collision_h1]
+	sub dx,2
+	call bgl_get_x_y_offset
+	call bgl_draw_chunky_pixel
+	add di,[bgl_collision_w1]
+	sub di,2
+	call bgl_draw_chunky_pixel
+	
+	pop dx
+	pop cx
+	pop ax
+	ret
+
+bgl_collision_debug_draw_2:
+	push ax
+	push cx
+	push dx
+	
+	mov al,[bgl_collision_c2]
+	call bgl_spread_8_16
+	
+	mov cx,[bgl_collision_x2]
+	mov dx,[bgl_collision_y2]
+	call bgl_get_x_y_offset
+	
+	call bgl_draw_chunky_pixel
+	add di,[bgl_collision_w2]
+	sub di,2
+	call bgl_draw_chunky_pixel
+	
+	mov cx,[bgl_collision_x2]
+	add dx,[bgl_collision_h2]
+	sub dx,2
+	call bgl_get_x_y_offset
+	call bgl_draw_chunky_pixel
+	add di,[bgl_collision_w2]
+	sub di,2
+	call bgl_draw_chunky_pixel
+	
+	pop dx
+	pop cx
+	pop ax
+
+bgl_collision_debug_draw_2b:
+	push ax
+	push cx
+	push dx
+	
+	mov al,[bgl_collision_c2]
+	call bgl_spread_8_16
+	
+	mov cx,[bgl_collision_x2]
+	mov dx,[bgl_collision_y2]
+	call bgl_get_x_y_offset
+	
+	call bgl_draw_chunky_pixel
+	
+	pop dx
+	pop cx
+	pop ax
+
 bgl_collision_check:
 	push ax
 	
     mov byte [bgl_collision_flag],0
 	
+	cmp byte [bgl_collision_debug],0
+	je .main
+	call bgl_collision_debug_draw_1
+	call bgl_collision_debug_draw_2
+	
 	; I have no clue why I had to use jl for all of these, I tried the "logical choice" and it just didn't work.
 	; If I had to guess why, it's because the result of all these comparisons will be negative if false.
 	
+.main:
 	mov ax,[bgl_collision_x2]
 	add ax,[bgl_collision_w2]
 	cmp ax,[bgl_collision_x1]
@@ -1940,8 +2182,14 @@ bgl_point_collision_check:
 	
     mov byte [bgl_collision_flag],0
 	
+	cmp byte [bgl_collision_debug],0
+	je .main
+	call bgl_collision_debug_draw_1
+	call bgl_collision_debug_draw_2b
+		
 	; x2 and y2 are for the point (w2 and h2 are unused here)
 	
+.main:
 	mov ax,[bgl_collision_x1]
 	cmp word [bgl_collision_x2],ax
 	jl .skip
@@ -2057,7 +2305,9 @@ bgl_init_last:
 	
 %ifndef bgl_no_keys
 	call bgl_replace_key_handler
+%ifndef bgl_no_palette
 	call bgl_get_orig_palette
+%endif
 %endif
 	ret
 	
@@ -2153,13 +2403,11 @@ bgl_flood_fill_full:
 	ret
 	
 bgl_flood_fill:
-	push ax
 .loop:
 	mov byte [es:di],al
 	inc di
 	cmp di,cx
 	jne .loop
-	pop ax
 	ret
 	
 bgl_flood_fill_fast: ; di: start, cx: end
@@ -2167,6 +2415,19 @@ bgl_flood_fill_fast: ; di: start, cx: end
 	
 	mov ah,al
 	rep stosw
+	
+	pop ax
+	ret
+	
+bgl_flood_fill2: ; di: start, cx: amount of pixels
+	push ax
+	
+	mov ah,al
+	add cx,di
+.loop:
+	stosw
+	cmp di,cx
+	jb .loop
 	
 	pop ax
 	ret
@@ -2231,7 +2492,7 @@ bgl_get_orig_palette:
 	pop ax
 	ret
 	
-bgl_temp_palette resb 768
+bgl_temp_palette resw 768 ; resw, because for the fade in, we use negative values (super janky)
 	
 bgl_fill_temp_palette:
 	push ax
@@ -2241,11 +2502,11 @@ bgl_fill_temp_palette:
 	mov si,64000
 	xor di,di
 .loop:
-	mov al,[fs:si]
-	mov byte [bgl_temp_palette+di],al
+	movzx ax,[fs:si]
+	mov word [bgl_temp_palette+di],ax
 	inc si
-	inc di
-	cmp di,768
+	add di,2
+	cmp di,768*2
 	jne .loop
 	
 	pop di
@@ -2258,9 +2519,9 @@ bgl_clear_temp_palette:
 	
 	xor bx,bx
 .loop:
-	mov byte [bgl_temp_palette+bx],0
-	inc bx
-	cmp bx,768
+	mov word [bgl_temp_palette+bx],0
+	add bx,2
+	cmp bx,768*2
 	jne .loop
 	
 	pop bx
@@ -2286,15 +2547,15 @@ bgl_fade_out:
 	out dx,al
 	mov dx,3c9h ; data
 .byte_loop:
-	mov al,[bgl_temp_palette+bx]
-	cmp al,0 ; this byte 0?
+	mov ax,[bgl_temp_palette+bx]
+	cmp ax,0 ; this byte 0?
 	je .byte_skip ; if so, keep it 0
-	dec al ; if not, decrease it
-	mov byte [bgl_temp_palette+bx],al
+	dec ax ; if not, decrease it
+	mov word [bgl_temp_palette+bx],ax
 .byte_skip:
 	out dx,al
-	inc bx ; increase byte counter
-	cmp bx,256*3 ; reached final byte?
+	add bx,2 ; increase byte counter
+	cmp bx,768*2 ; reached final byte?
 	jne .byte_loop ; if not, continue bything
 	
 	call bgl_wait_retrace
@@ -2309,14 +2570,14 @@ bgl_fade_out:
 	pop ax
 	ret
 	
-bgl_fade_in: ; work in progress - it does technically work, but it looks a bit weird, and i know why. but i've got fading to work anyway so i'm happy!
+bgl_fade_in:
 	push ax
 	push bx
 	push cx
 	push dx
 	push si
 	
-	call bgl_clear_temp_palette
+	call bgl_fill_temp_palette
 	mov cl,64 ; fade steps
 	
 .step_loop:
@@ -2328,16 +2589,25 @@ bgl_fade_in: ; work in progress - it does technically work, but it looks a bit w
 	out dx,al
 	mov dx,3c9h ; data
 .byte_loop:
-	mov al,[bgl_temp_palette+bx] ; get existing palette colour
-	cmp al,[fs:si] ; is this byte matching?
-	je .byte_skip ; if so, keep it that way
-	inc al ; if not, increase it
-	mov byte [bgl_temp_palette+bx],al
+	mov ax,[bgl_temp_palette+bx]
+	push dx
+	movzx dx,[fs:si]
+	add dx,255
+	cmp ax,dx ; is this byte matching?
+	pop dx
+	je .byte_skip
+	inc ax
+	mov word [bgl_temp_palette+bx],ax
 .byte_skip:
+	sub ax,64
+	cmp ax,0
+	jg .zero_skip
+	xor ax,ax
+.zero_skip:
 	out dx,al
 	inc si
-	inc bx ; increase byte counter
-	cmp bx,256*3 ; reached final byte?
+	add bx,2 ; increase byte counter
+	cmp bx,768*2 ; reached final byte?
 	jne .byte_loop ; if not, continue bything
 	
 	call bgl_wait_retrace
@@ -2364,6 +2634,7 @@ bgl_escape_exit:
 .skip:
 	ret
 	
+%ifndef bgl_no_palette
 bgl_escape_exit_fade:
 	cmp word [bgl_key_states+1],0 ; escape pressed?
 	je .skip
@@ -2373,6 +2644,7 @@ bgl_escape_exit_fade:
 	int 21h
 .skip:
 	ret
+%endif
 %endif
 	
 bgl_error:
@@ -2466,6 +2738,7 @@ bgl_draw_font_number:
 	
 	push eax
 	mov ax,cx ; get start x
+	dec ax
 	movzx bx,[bgl_font_spacing]
 	xor dx,dx
 	mul bx ; digits * font spacing
@@ -2592,7 +2865,7 @@ wave_table_deg:
 	dw  -1
 	
 wave_table_255:
-	db 0,3,6,9,12,16,19,22,25,28,31,34,37,40,43,46,49,52,54,57,60,63,66,68,71,73,76,78,81,83,86,88,90,92,94,96,98,100,102,104,106,108,109,111,112,114,115,116,118,119,120,121,122,123,123,124,125,125,126,126,126,127,127,127,127,127,127,127,126,126,125,125,124,124,123,122,121,120,119,118,117,116,114,113,112,110,108,107,105,103,101,99,97,95,93,91,89,87,84,82,80,77,75,72,69,67,64,61,59,56,53,50,47,44,41,39,36,32,29,26,23,20,17,14,11,8,5,2,-2,-5,-8,-11,-14,-17,-20,-23,-26,-29,-32,-36,-39,-41,-44,-47,-50,-53,-56,-59,-61,-64,-67,-69,-72,-75,-77,-80,-82,-84,-87,-89,-91,-93,-95,-97,-99,-101,-103,-105,-107,-108,-110,-112,-113,-114,-116,-117,-118,-119,-120,-121,-122,-123,-124,-124,-125,-125,-126,-126,-127,-127,-127,-127,-127,-127,-127,-126,-126,-126,-125,-125,-124,-123,-123,-122,-121,-120,-119,-118,-116,-115,-114,-112,-111,-109,-108,-106,-104,-102,-100,-98,-96,-94,-92,-90,-88,-86,-83,-81,-78,-76,-73,-71,-68,-66,-63,-60,-57,-54,-52,-49,-46,-43,-40,-37,-34,-31,-28,-25,-22,-19,-16,-12,-9,-6,-3,0
+	db 0,3,6,9,12,16,19,22,25,28,31,34,37,40,43,46,49,51,54,57,60,63,65,68,71,73,76,78,81,83,85,88,90,92,94,96,98,100,102,104,106,107,109,111,112,113,115,116,117,118,120,121,122,122,123,124,125,125,126,126,126,127,127,127,127,127,127,127,126,126,126,125,125,124,123,122,122,121,120,118,117,116,115,113,112,111,109,107,106,104,102,100,98,96,94,92,90,88,85,83,81,78,76,73,71,68,65,63,60,57,54,51,49,46,43,40,37,34,31,28,25,22,19,16,12,9,6,3,0,-3,-6,-9,-12,-16,-19,-22,-25,-28,-31,-34,-37,-40,-43,-46,-49,-51,-54,-57,-60,-63,-65,-68,-71,-73,-76,-78,-81,-83,-85,-88,-90,-92,-94,-96,-98,-100,-102,-104,-106,-107,-109,-111,-112,-113,-115,-116,-117,-118,-120,-121,-122,-122,-123,-124,-125,-125,-126,-126,-126,-127,-127,-127,-127,-127,-127,-127,-126,-126,-126,-125,-125,-124,-123,-122,-122,-121,-120,-118,-117,-116,-115,-113,-112,-111,-109,-107,-106,-104,-102,-100,-98,-96,-94,-92,-90,-88,-85,-83,-81,-78,-76,-73,-71,-68,-65,-63,-60,-57,-54,-51,-49,-46,-43,-40,-37,-34,-31,-28,-25,-22,-19,-16,-12,-9,-6,-3
 %endif
 	
 bgl_end:

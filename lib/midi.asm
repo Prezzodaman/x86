@@ -173,6 +173,10 @@ drum_snare_brush equ 93
 note_on equ 90h
 note_off equ 80h
 
+%ifdef opl
+	call opl_percussion_mode
+%endif
+
 	jmp midi_end
 
 ; there is no correlation between tracks and channels - each track contains note ons and offs for its own channel
@@ -236,9 +240,6 @@ midi_interrupt:
 	push dx
 	push si
 	
-	movzx ax,[midi_track_wait+3]
-	mov gs,ax
-	
 	cmp byte [midi_playing],0
 	je .end
 	
@@ -292,6 +293,12 @@ midi_interrupt:
 	cmp al,note_on
 	jb .track_loop_note_off_skip
 	
+%ifdef opl
+	push ax
+	sub al,90h ; get channel number on its own
+	call opl_note_off ; no note required
+	pop ax
+%else
 	call midi_setup
 	sub al,10h ; change note on to note off
 	out dx,al
@@ -299,9 +306,12 @@ midi_interrupt:
 	out dx,al
 	mov al,63 ; velocity
 	out dx,al
+%endif
 	
 .track_loop_note_off_skip:
+%ifndef opl
 	call midi_setup
+%endif
 	mov si,[midi_track_offset+bx]
 	mov al,[si]
 	sub al,note_on ; get channel number
@@ -315,14 +325,31 @@ midi_interrupt:
 	pop bx
 	jnc .track_loop_end ; if not, skip
 	
+%ifdef opl
+	push bx
+	mov al,[si]
+	cmp al,note_on ; is this a note on?
+	jb .opl_note_off ; if not, handle note off
+	sub al,note_on ; it's a note on
+	inc si ; get note number
+	mov bl,[si]
+	call opl_note_on
+	jmp .opl_skip
+.opl_note_off:
+	sub al,note_off
+	call opl_note_off ; channel's all that's needed
+.opl_skip:
+	pop bx
+%else
 	mov al,[si] ; note on/off
 	out dx,al
 	inc si
-	mov al,[si] ; note to play
+	mov al,[si] ; note to play/cut
 	out dx,al
 	inc si
 	mov al,[si] ; velocity
 	out dx,al
+%endif
 	push bx
 	shr bx,1
 	bts word [midi_track_event],bx
@@ -334,19 +361,6 @@ midi_interrupt:
 	
 	cmp cl,0 ; if this was a drum note, send a note off
 	je .track_loop_end
-	
-	call midi_setup
-	
-	;mov al,[si]
-	;cmp al,note_on ; note off?
-	;jb .track_loop_end ; if so, ignore drum check
-	;sub al,10h ; change note on to note off
-	;out dx,al
-	;inc si
-	;mov al,[si] ; note to turn off
-	;out dx,al
-	;mov al,63 ; note off velocity
-	;out dx,al
 	
 .track_loop_end:
 	add word [midi_track_offset+bx],3
@@ -394,6 +408,9 @@ midi_interrupt:
 	iret
 
 midi_all_notes_off:
+%ifdef opl
+	call opl_all_notes_off
+%else
 	push ax
 	push bx
 
@@ -407,9 +424,13 @@ midi_all_notes_off:
 	
 	pop bx
 	pop ax
+%endif
 	ret
 
-midi_all_notes_off_channel:
+midi_all_notes_off_channel: ; al = channel
+%ifdef opl
+	call opl_note_off
+%else
 	push bx
 	xor bl,bl ; note
 .note_loop:
@@ -418,9 +439,11 @@ midi_all_notes_off_channel:
 	cmp bl,127
 	jne .note_loop
 	pop ax
+%endif
 	ret
 
 midi_setup:
+%ifndef opl
 	push ax
 	mov dx,331h ; gets it into uart mode
 	mov al,3fh
@@ -428,9 +451,20 @@ midi_setup:
 	
 	mov dx,330h
 	pop ax
+%endif
 	ret
 
 midi_channel_change: ; al = channel, ah = instrument
+	; if using opl, si is the instrument, as it points to a series of values, not just one
+%ifdef opl
+	push si
+	cmp si,opl_instrument_piano ; si can't be anything before the first instrument
+	jae .opl_skip ; if it's a valid instrument, skip
+	mov si,opl_instrument_piano ; otherwise, default to piano
+.opl_skip:
+	call opl_setup_instrument
+	pop si
+%else
 	push ax
 	push dx
 	call midi_setup
@@ -440,9 +474,13 @@ midi_channel_change: ; al = channel, ah = instrument
 	out dx,al
 	pop dx
 	pop ax
+%endif
 	ret
 	
 midi_note_off: ; al = channel, bl = note
+%ifdef opl
+	call opl_note_off
+%else
 	push ax
 	call midi_setup
 	add al,note_off
@@ -452,9 +490,13 @@ midi_note_off: ; al = channel, bl = note
 	mov al,63
 	out dx,al ; note off velocity
 	pop ax
+%endif
 	ret
 	
 midi_note_on: ; al = channel, ah = velocity, bl = note
+%ifdef opl
+	call opl_note_on
+%else
 	push ax
 	push dx
 	call midi_setup
@@ -466,6 +508,7 @@ midi_note_on: ; al = channel, ah = velocity, bl = note
 	out dx,al
 	pop dx
 	pop ax
+%endif
 	ret
 	
 midi_end:

@@ -18,6 +18,7 @@ if len(sys.argv)>1:
                 line=line.replace("midi.asm","lib/midi.asm")
                 line=line.replace("random.asm","lib/random.asm")
                 line=line.replace("general.asm","lib/general.asm")
+                line=line.replace("mod.asm","lib/mod.asm")
             output_file+=line
             
         with open("temp.asm","w") as file:

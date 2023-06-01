@@ -37,3 +37,7 @@ Sends a "note on" signal to a MIDI channel specified in **al**, where **ah** is 
 ## midi_note_off
 
 Sends a "note off" signal to a MIDI channel specified in **al**, where **bl** is the note number.
+
+# Bonus feature: OPL2 support!
+
+If the OPL2 library (opl2.asm) is included alongside this library, MIDI notes will play through the OPL2 instead! Beware that polyphony isn't supported in this case, due to how multiple notes can share the same channel.
